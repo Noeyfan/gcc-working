@@ -7,10 +7,13 @@ inline namespace fundamentals_v1 {
     class shared_ptr : __shared_ptr<_Tp>
     {
     public:
-      shared_ptr() = default;
-      shared_ptr(const shared_ptr&) noexcept = default;
-      shared_ptr(_Tp __p) :
-      __shared_ptr<_Tp>(__p) {}
+      constexpr shared_ptr() noexcept = default;
+
+      template<typename _Tp1>
+	shared_ptr(_Tp1* __p)
+      	: __shared_ptr<_Tp>(__p) { }
+
+      ~shared_ptr() = default;
     };
 }
 }
