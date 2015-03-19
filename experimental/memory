@@ -1,0 +1,17 @@
+#include <memory>
+
+namespace std {
+namespace experimental {
+inline namespace fundamentals_v1 {
+	template<typename _Tp>
+		class shared_ptr : __shared_ptr<_Tp>
+		{
+		public:
+			shared_ptr() = default;
+			shared_ptr(const shared_ptr&) noexcept = default;
+			shared_ptr(_Tp __p) :
+				__shared_ptr<_Tp>(__p) {}
+		};
+}
+}
+}
