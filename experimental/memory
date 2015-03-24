@@ -3,17 +3,54 @@
 namespace std {
 namespace experimental {
 inline namespace fundamentals_v1 {
+
   template<typename _Tp>
-    class shared_ptr : __shared_ptr<_Tp>
+    class shared_ptr;
+
+  template<typename _Tp>
+    class weak_ptr;
+
+  template<typename _Tp>
+    class shared_ptr : public __shared_ptr<_Tp>
     {
     public:
       constexpr shared_ptr() noexcept = default;
 
       template<typename _Tp1>
-	shared_ptr(_Tp1* __p)
-      	: __shared_ptr<_Tp>(__p) { }
+	explicit shared_ptr(_Tp1* __p) : __shared_ptr<_Tp>(__p) { }
+
+      template<typename _Tp1, typename _Deleter> 
+	shared_ptr(_Tp1* __p, _Deleter __d)
+	: __shared_ptr<_Tp>(__p, __d) { }
+
+      //TODO
 
       ~shared_ptr() = default;
+
+      //copy constructor (memory usable)
+
+      shared_ptr& operator=(const shared_ptr<_Tp>& __r) = default;
+
+      //shared_ptr& operator=(shared_ptr&& r) noexcept = default;
+
+      template<typename _Tp1>
+	explicit shared_ptr(const weak_ptr<_Tp1>& __r)
+	: __shared_ptr<_Tp>(__r){ }
+
+    };
+
+  template<typename _Tp>
+    class weak_ptr : public __weak_ptr<_Tp>
+    {
+    public:
+      constexpr weak_ptr() noexcept = default;
+
+      weak_ptr&
+      operator=(const shared_ptr<_Tp>& __r) noexcept
+      {
+	this->__weak_ptr<_Tp>::operator=(__r);
+	return *this;
+      }
     };
 }
 }
