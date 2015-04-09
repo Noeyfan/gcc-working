@@ -7,51 +7,115 @@ inline namespace fundamentals_v1 {
   template<typename _Tp>
     class shared_ptr;
 
-  template<typename _Tp>
-    class weak_ptr;
+  // C++14 §20.8.2.2.6
+  // According to proposal
+  template<typename _Tp, typename _Alloc, typename... _Args>
+    inline shared_ptr<_Tp>
+    allocate_shared(const _Alloc& __a, size_t __size, _Args&&... __args)
+    {
+      return shared_ptr<_Tp>(_Sp_make_shared_tag(), __a, __size,
+			     std::forward<_Args>(__args)...);
+    }
+  
+  template<typename _Tp, typename _Alloc, typename... _Args>
+    inline shared_ptr<_Tp>
+    allocate_shared(const _Alloc& __a, _Args&&... __args)
+    {
+      return shared_ptr<_Tp>(_Sp_make_shared_tag(), __a,
+			     std::forward<_Args>(__args)...);
+    }
 
-  template<typename _Tp>
-    class shared_ptr : public __shared_ptr<_Tp>
+  template<typename _Tp, typename... _Args>
+    inline shared_ptr<_Tp>
+    make_shared(size_t __size, _Args&&... __args)
+    {
+      typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
+      return std::experimental::allocate_shared<_Tp>(std::allocator<_Tp_nc>(), __size, 
+						     std::forward<_Args>(__args)...);
+    }
+
+  template<typename _Tp, typename... _Args>
+    inline shared_ptr<_Tp>
+    make_shared(_Args&&... __args)
+    {
+      typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
+      return std::experimental::allocate_shared<_Tp>(std::allocator<_Tp_nc>(),
+						     std::forward<_Args>(__args)...);
+    }
+
+  //for non default lock policy
+  template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
+    using __shared_ptr = std::__shared_ptr<_Tp, _Lp>;
+
+  template<typename _Tp, unsigned N>
+    class shared_ptr<_Tp[N]> : public __shared_ptr<__libfund_v1<_Tp[N]>>
     {
     public:
+      typedef typename std::remove_extent<_Tp> element_type;
+
       constexpr shared_ptr() noexcept = default;
 
       template<typename _Tp1>
-	explicit shared_ptr(_Tp1* __p) : __shared_ptr<_Tp>(__p) { }
+        explicit shared_ptr(_Tp1* __p) : __shared_ptr<__libfund_v1<_Tp[N]>>(__p) { }
 
       template<typename _Tp1, typename _Deleter> 
-	shared_ptr(_Tp1* __p, _Deleter __d)
-	: __shared_ptr<_Tp>(__p, __d) { }
+        shared_ptr(_Tp1* __p, _Deleter __d)
+        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d) { }
 
-      //TODO
+      template<typename _Tp1, typename _Deleter, typename _Alloc> 
+        shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
+        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d, __a) { }
+
+      template<typename _Deleter> // N = 0 ?
+        shared_ptr(nullptr_t __p, _Deleter __d)
+        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d) { }
+
+      template<typename _Deleter, typename _Alloc> // N = 0 ?
+        shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
+        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d, __a) { }
+
+      template<typename _Tp1> // _Tp1 is not array type?
+        shared_ptr(const shared_ptr<_Tp1>& __r, _Tp* __p) noexcept
+        : __shared_ptr<__libfund_v1<_Tp[N]>>(__r, __p) { }
+
+      shared_ptr(const shared_ptr<_Tp>&& __r) noexcept
+      : __shared_ptr<__libfund_v1<_Tp[N]>>(std::move(__r)) { }
+
+      //TODO 32
+      //TODO cast
 
       ~shared_ptr() = default;
 
-      //copy constructor (memory usable)
-
-      shared_ptr& operator=(const shared_ptr<_Tp>& __r) = default;
-
-      //shared_ptr& operator=(shared_ptr&& r) noexcept = default;
-
+      // C++14 §20.8.2.3
       template<typename _Tp1>
-	explicit shared_ptr(const weak_ptr<_Tp1>& __r)
-	: __shared_ptr<_Tp>(__r){ }
+        explicit shared_ptr(const weak_ptr<_Tp1>& __r)
+        : __shared_ptr<_Tp[N]>(__r){ }
 
-    };
-
-  template<typename _Tp>
-    class weak_ptr : public __weak_ptr<_Tp>
-    {
-    public:
-      constexpr weak_ptr() noexcept = default;
-
-      weak_ptr&
-      operator=(const shared_ptr<_Tp>& __r) noexcept
+      // Observers
+      _Tp& 
+      operator[](ptrdiff_t i) const noexcept
       {
-	this->__weak_ptr<_Tp>::operator=(__r);
-	return *this;
+	return (this->get())[i];
       }
+
+    private:
+      // non standard for make_shared
+      template<typename _Alloc, typename... _Args>
+      shared_ptr(_Sp_make_shared_tag __tag, const _Alloc& __a,
+		 size_t __size = N, _Args&&... __args)
+      : __shared_ptr<__libfund_v1<_Tp[N]>>(__tag, __a, __size,
+					   std::forward<_Args>(__args)...)
+      { }
+
+      template<typename _Tp1, typename _Alloc, typename... _Args>
+	friend shared_ptr<_Tp1>
+	allocate_shared(const _Alloc& __a, size_t __size, _Args&&... __args);
+
+      template<typename _Tp1, typename _Alloc, typename... _Args>
+	friend shared_ptr<_Tp1>
+	allocate_shared(const _Alloc& __a, _Args&&... __args);
     };
 }
 }
 }
+
