@@ -1,85 +1,111 @@
 #include <memory>
 
+//TODO: make_shared
+
 namespace std {
 namespace experimental {
 inline namespace fundamentals_v1 {
 
-  template<typename _Tp>
-    class shared_ptr;
+//define class
+template<typename _Tp>
+  class shared_ptr;
+
+//define func
+template<typename _Tp, typename _Alloc, typename... _Args>
+  inline shared_ptr<_Tp>
+  allocate_shared(const _Alloc& __a, _Args&&... __args);
+
+namespace __detail {
+    template <typename _Tp>
+      struct make_shared_imp 
+      {
+	template <typename... _Args>
+	  static std::experimental::shared_ptr<_Tp> _M_apply(_Args&&... __args)
+      	  {
+      	    std::cout << "non array alloc-memory" << endl;
+	    typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
+	    return std::experimental::allocate_shared<_Tp>(std::allocator<_Tp_nc>(),
+	  			  			 std::forward<_Args>(__args)...);
+      	  }
+      };
+
+    template <typename _Tp, unsigned N>
+      struct make_shared_imp<_Tp[N]> 
+      {
+	static std::experimental::shared_ptr<_Tp[N]> _M_apply(unsigned __size)
+      	{
+      	  std::cout << "array alloc-memory size" << endl;
+	  typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
+	  return std::experimental::allocate_shared<_Tp[N]>(std::allocator<_Tp_nc>(), __size);
+      	}
+
+	static std::experimental::shared_ptr<_Tp[N]> _M_apply()
+      	{
+      	  std::cout << "array alloc-memory no size" << endl;
+	  typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
+	  return std::experimental::allocate_shared<_Tp[N]>(std::allocator<_Tp_nc>());
+      	}
+      };
+}
 
   // C++14 §20.8.2.2.6
-  // According to proposal
-  template<typename _Tp, typename _Alloc, typename... _Args>
-    inline shared_ptr<_Tp>
-    allocate_shared(const _Alloc& __a, size_t __size, _Args&&... __args)
-    {
-      return shared_ptr<_Tp>(_Sp_make_shared_tag(), __a, __size,
-			     std::forward<_Args>(__args)...);
-    }
-  
+
+  // make_shared
   template<typename _Tp, typename _Alloc, typename... _Args>
     inline shared_ptr<_Tp>
     allocate_shared(const _Alloc& __a, _Args&&... __args)
     {
-      return shared_ptr<_Tp>(_Sp_make_shared_tag(), __a,
-			     std::forward<_Args>(__args)...);
-    }
-
-  template<typename _Tp, typename... _Args>
-    inline shared_ptr<_Tp>
-    make_shared(size_t __size, _Args&&... __args)
-    {
-      typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
-      return std::experimental::allocate_shared<_Tp>(std::allocator<_Tp_nc>(), __size, 
-						     std::forward<_Args>(__args)...);
+      return is_array<_Tp>::value?
+      shared_ptr<_Tp>(_Sp_make_shared_array_tag(), __a, // boom!
+		      std::forward<_Args>(__args)...)
+      :shared_ptr<_Tp>(_Sp_make_shared_tag(), __a,
+		       std::forward<_Args>(__args)...);
     }
 
   template<typename _Tp, typename... _Args>
     inline shared_ptr<_Tp>
     make_shared(_Args&&... __args)
     {
-      typedef typename std::remove_const<std::remove_extent<_Tp>>::type _Tp_nc;
-      return std::experimental::allocate_shared<_Tp>(std::allocator<_Tp_nc>(),
-						     std::forward<_Args>(__args)...);
+      return __detail::make_shared_imp<_Tp>::_M_apply(std::forward<_Args>(__args)...);
     }
 
   //for non default lock policy
   template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
     using __shared_ptr = std::__shared_ptr<_Tp, _Lp>;
 
-  template<typename _Tp, unsigned N>
-    class shared_ptr<_Tp[N]> : public __shared_ptr<__libfund_v1<_Tp[N]>>
+  template<typename _Tp>
+    class shared_ptr : public __shared_ptr<__libfund_v1<_Tp>>
     {
     public:
-      typedef typename std::remove_extent<_Tp> element_type;
+      using __base_type = __shared_ptr<__libfund_v1<_Tp>>;
 
       constexpr shared_ptr() noexcept = default;
 
       template<typename _Tp1>
-        explicit shared_ptr(_Tp1* __p) : __shared_ptr<__libfund_v1<_Tp[N]>>(__p) { }
+        explicit shared_ptr(_Tp1* __p) : __base_type(__p) { }
 
       template<typename _Tp1, typename _Deleter> 
         shared_ptr(_Tp1* __p, _Deleter __d)
-        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d) { }
+        : __base_type(__p, __d) { }
 
       template<typename _Tp1, typename _Deleter, typename _Alloc> 
         shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
-        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d, __a) { }
+        : __base_type(__p, __d, __a) { }
 
       template<typename _Deleter> // N = 0 ?
         shared_ptr(nullptr_t __p, _Deleter __d)
-        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d) { }
+        : __base_type(__p, __d) { }
 
       template<typename _Deleter, typename _Alloc> // N = 0 ?
         shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
-        : __shared_ptr<__libfund_v1<_Tp[N]>>(__p, __d, __a) { }
+        : __base_type(__p, __d, __a) { }
 
       template<typename _Tp1> // _Tp1 is not array type?
         shared_ptr(const shared_ptr<_Tp1>& __r, _Tp* __p) noexcept
-        : __shared_ptr<__libfund_v1<_Tp[N]>>(__r, __p) { }
+        : __base_type(__r, __p) { }
 
       shared_ptr(const shared_ptr<_Tp>&& __r) noexcept
-      : __shared_ptr<__libfund_v1<_Tp[N]>>(std::move(__r)) { }
+      : __base_type(std::move(__r)) { }
 
       //TODO 32
       //TODO cast
@@ -89,7 +115,7 @@ inline namespace fundamentals_v1 {
       // C++14 §20.8.2.3
       template<typename _Tp1>
         explicit shared_ptr(const weak_ptr<_Tp1>& __r)
-        : __shared_ptr<_Tp[N]>(__r){ }
+        : __shared_ptr<_Tp>(__r){ }
 
       // Observers
       _Tp& 
@@ -100,16 +126,27 @@ inline namespace fundamentals_v1 {
 
     private:
       // non standard for make_shared
+      // TODO: rewrite make_shared
+
+      // make_shared non array
       template<typename _Alloc, typename... _Args>
       shared_ptr(_Sp_make_shared_tag __tag, const _Alloc& __a,
-		 size_t __size = N, _Args&&... __args)
-      : __shared_ptr<__libfund_v1<_Tp[N]>>(__tag, __a, __size,
-					   std::forward<_Args>(__args)...)
+        	 _Args&&... __args)
+      : __base_type(__tag, __a, std::forward<_Args>(__args)...)
       { }
 
-      template<typename _Tp1, typename _Alloc, typename... _Args>
-	friend shared_ptr<_Tp1>
-	allocate_shared(const _Alloc& __a, size_t __size, _Args&&... __args);
+      // make_shared array
+      template<typename _Alloc>
+      shared_ptr(_Sp_make_shared_array_tag __array_tag,
+		 const _Alloc& __a, size_t __size)
+      : __base_type(__array_tag, __a, __size)
+      { }
+
+      template<typename _Alloc>
+      shared_ptr(_Sp_make_shared_array_tag __array_tag,
+		 const _Alloc& __a)
+      : __base_type(__array_tag, __a)
+      { }
 
       template<typename _Tp1, typename _Alloc, typename... _Args>
 	friend shared_ptr<_Tp1>
