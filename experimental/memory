@@ -1,170 +1,257 @@
+// <experimental/memory> -*- C++ -*-
+
+// Copyright (C) 2015 Free Software Foundation, Inc.
+//
+// This file is part of the GNU ISO C++ Library.  This library is free
+// software; you can redistribute it and/or modify it under the
+// terms of the GNU General Public License as published by the
+// Free Software Foundation; either version 3, or (at your option)
+// any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
+
+/** @file experimental/memory
+ *  This is a TS C++ Library header.
+ */
+
+//
+// N4336 Working Draft, C++ Extensions for Library Fundamentals, Version 2
+//
+
+#ifndef _GLIBCXX_EXPERIMENTAL_MEMORY
+#define _GLIBCXX_EXPERIMENTAL_MEMORY 1
+
+#pragma GCC system_header
+
+#if __cplusplus <= 201103L
+# include <bits/c++14_warning.h>
+#else
+
 #include <memory>
+#include <type_traits>
+#include <utility>
+#include <functional>
 
-namespace std {
-namespace experimental {
-inline namespace fundamentals_v1 {
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+namespace experimental
+{
+inline namespace fundamentals_v2
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-//define class
-template<typename _Tp>
-  class shared_ptr;
+#define __cpp_lib_experimental_observer_ptr 201411
 
-  // C++14 §20.8.2.2.6
-
-  //for non default lock policy
-  template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
-    using __shared_ptr = std::__shared_ptr<_Tp, _Lp>;
-
-  template<typename _Tp>
-    class shared_ptr : public __shared_ptr<__libfund_v1<_Tp>>
+  template <typename _Tp>
+    class observer_ptr
     {
     public:
-      using __base_type = __shared_ptr<__libfund_v1<_Tp>>;
-      using element_type = typename remove_extent<_Tp>::type;
+      // publish our template parameter and variations thereof
+      using element_type = _Tp;
+      using __pointer = add_pointer_t<_Tp>;            // exposition-only
+      using __reference = add_lvalue_reference_t<_Tp>; // exposition-only
 
-      // 8.2.1.1, shared_ptr constructors
-      constexpr shared_ptr() noexcept = default;
-
-      template<typename _Tp1>
-        explicit shared_ptr(_Tp1* __p) : __base_type(__p) { }
-
-      template<typename _Tp1, typename _Deleter> 
-        shared_ptr(_Tp1* __p, _Deleter __d)
-        : __base_type(__p, __d) { }
-
-      template<typename _Tp1, typename _Deleter, typename _Alloc> 
-        shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
-        : __base_type(__p, __d, __a) { }
-
-      template<typename _Deleter>
-        shared_ptr(nullptr_t __p, _Deleter __d)
-        : __base_type(__p, __d) { }
-
-      template<typename _Deleter, typename _Alloc>
-        shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
-        : __base_type(__p, __d, __a) { }
-
-      template<typename _Tp1>
-        shared_ptr(const shared_ptr<_Tp1>& __r, _Tp* __p) noexcept
-        : __base_type(__r, __p) { }
-
-      shared_ptr(const shared_ptr& __r) noexcept
-	: __base_type(__r) { }
-
-      template<typename _Tp1, typename = typename
-	       std::enable_if<std::is_convertible<_Tp1*, _Tp*>::value>::type> 
-	shared_ptr(const shared_ptr<_Tp1>& __r) noexcept
-	: __base_type(__r) { }
-
-      shared_ptr(const shared_ptr<_Tp>&& __r) noexcept
-      : __base_type(std::move(__r)) { }
-
-      template<typename _Tp1, typename = typename
-	       std::enable_if<std::is_convertible<_Tp1*, _Tp*>::value>::type> 
-	shared_ptr(shared_ptr<_Tp1>&& __r) noexcept
-	: __base_type(std::move(__r)) { }
-
-      template<typename _Tp1>
-        explicit shared_ptr(const weak_ptr<__libfund_v1<_Tp1>>& __r)
-        : __base_type(__r) { }
-
-      // auto, unique TODO
-
-      constexpr shared_ptr(nullptr_t __p)
-      : __base_type(__p) { }
-
-      // C++14 §20.8.2.2 //TODO auto_ptr/unique operator
-      ~shared_ptr() = default;
-
-      // C++14 §20.8.2.3
-      shared_ptr& operator=(const shared_ptr&) noexcept = default;
-
-      template <typename _Tp1>
-	shared_ptr& 
-      	operator=(const shared_ptr<_Tp1>& __r) noexcept
-	{
-	  this->__base_type::operator=(__r);
-	  return *this;
-	}
-
-      shared_ptr& 
-      operator=(shared_ptr&& __r) noexcept
-      {
-        this->__base_type::operator=(std::move(__r));
-        return *this;
-      }
-
-      template <typename _Tp1>
-	shared_ptr& 
-      	operator=(shared_ptr<_Tp1>&& __r) noexcept
-	{
-	  this->__base_type::operator=(std::move(__r));
-	  return *this;
-	}
-
-      // 8.2.1.2 shared_ptr observers
-      element_type& 
-      operator[](ptrdiff_t i) const noexcept
-      {
-	return (this->get())[i];
-      }
-
-    private:
-      template<typename _Alloc, typename... _Args>
-      shared_ptr(_Sp_make_shared_tag __tag, const _Alloc& __a,
-        	 _Args&&... __args)
-      : __base_type(__tag, __a, std::forward<_Args>(__args)...)
+      // 3.2.2, observer_ptr constructors
+      // default c’tor
+      constexpr observer_ptr() noexcept
+      : __t()
       { }
 
-      template<typename _Tp1, typename _Alloc, typename... _Args>
-	friend shared_ptr<_Tp1>
-	allocate_shared(const _Alloc& __a, _Args&&...  __args);
+      // pointer-accepting c’tors
+      constexpr observer_ptr(nullptr_t) noexcept
+      : __t()
+      { }
 
-      shared_ptr(const weak_ptr<__libfund_v1<_Tp>>& __r, std::nothrow_t)
-      : __base_type(__r, std::nothrow) { }
+      constexpr explicit observer_ptr(__pointer __p) noexcept
+      : __t(__p)
+      { }
 
-      friend class weak_ptr<__libfund_v1<_Tp>>;
-    };
+      // copying c’tors (in addition to compiler-generated copy c’tor)
+      template <typename _Up,
+		typename = typename enable_if<
+		  is_convertible<typename add_pointer<_Up>::type, __pointer
+		  >::value
+		>::type>
+      constexpr observer_ptr(observer_ptr<_Up> __p) noexcept
+      : __t(__p.get())
+      {
+      }
+
+      // 3.2.3, observer_ptr observers
+      constexpr __pointer
+      get() const noexcept
+      {
+	return __t;
+      }
+
+      constexpr __reference
+      operator*() const
+      {
+	return *get();
+      }
+
+      constexpr __pointer
+      operator->() const noexcept
+      {
+	return get();
+      }
+
+      constexpr explicit operator bool() const noexcept
+      {
+	return get() != nullptr;
+      }
+
+      // 3.2.4, observer_ptr conversions
+      constexpr explicit operator __pointer() const noexcept
+      {
+	return get();
+      }
+
+      // 3.2.5, observer_ptr modifiers
+      constexpr __pointer
+      release() noexcept
+      {
+	__pointer tmp = get();
+	reset();
+	return tmp;
+      }
+
+      constexpr void
+      reset(__pointer __p = nullptr) noexcept
+      {
+	__t = __p;
+      }
+
+      constexpr void
+      swap(observer_ptr& __p) noexcept
+      {
+	std::swap(__t, __p.__t);
+      }
+
+    private:
+      __pointer __t;
+    }; // observer_ptr<>
 
   template<typename _Tp>
-    class enable_shared_from_this
+    void
+    swap(observer_ptr<_Tp>& __p1, observer_ptr<_Tp>& __p2) noexcept
     {
-    protected:
-      constexpr enable_shared_from_this() noexcept { }
+      __p1.swap(__p2);
+    }
 
-      enable_shared_from_this(const enable_shared_from_this&) noexcept { }
+  template<typename _Tp>
+    observer_ptr<_Tp>
+    make_observer(_Tp* __p) noexcept
+    {
+      return observer_ptr<_Tp>(__p);
+    }
 
-      enable_shared_from_this&
-      operator=(const enable_shared_from_this&) noexcept
-      { return *this; }
+  template<typename _Tp, typename _Up>
+    bool
+    operator==(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+      return __p1.get() == __p2.get();
+    }
 
-      ~enable_shared_from_this() { }
+  template<typename _Tp, typename _Up>
+    bool
+    operator!=(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+    return !(__p1 == __p2);
+    }
 
-    public:
-      shared_ptr<_Tp>
-      shared_from_this()
-      { return shared_ptr<_Tp>(this->_M_weak_this); }
+  template<typename _Tp>
+    bool
+    operator==(observer_ptr<_Tp> __p, nullptr_t) noexcept
+    {
+      return !__p;
+    }
 
-      shared_ptr<const _Tp>
-      shared_from_this() const
-      { return shared_ptr<const _Tp>(this->_M_weak_this); }
-    private:
-      template<typename _Tp1>
-	void
-	_M_weak_assign(_Tp1* __p, const __shared_count<>& __n) const noexcept
-	{ _M_weak_this._M_assign(__p, __n); }
+  template<typename _Tp>
+    bool
+    operator==(nullptr_t, observer_ptr<_Tp> __p) noexcept
+    {
+      return !__p;
+    }
 
-      template<typename _Tp1>
-	friend void 
-	__enable_shared_from_this_helper(const __shared_count<>& __pn,
-					 const enable_shared_from_this* __pe,
-					 const _Tp1* __px) noexcept
-	{ 
-	  if(__pe != 0)
-	    __pe->_M_weak_assign(const_cast<_Tp1*>(__px), __pn);
-	}
+  template<typename _Tp>
+    bool
+    operator!=(observer_ptr<_Tp> __p, nullptr_t) noexcept
+    {
+      return bool(__p);
+    }
 
-      mutable weak_ptr<__libfund_v1<_Tp>>  _M_weak_this;
-    };
-}
-}
-}
+  template<typename _Tp>
+    bool
+    operator!=(nullptr_t, observer_ptr<_Tp> __p) noexcept
+    {
+      return bool(__p);
+    }
+
+  template<typename _Tp, typename _Up>
+    bool
+    operator<(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+      return std::less<typename common_type<typename add_pointer<_Tp>::type,
+					    typename add_pointer<_Up>::type
+					    >::type
+		       >{}(__p1.get(), __p2.get());
+    }
+
+  template<typename _Tp, typename _Up>
+    bool
+    operator>(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+      return __p2 < __p1;
+    }
+
+  template<typename _Tp, typename _Up>
+    bool
+    operator<=(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+      return !(__p2 < __p1);
+    }
+
+  template<typename _Tp, typename _Up>
+    bool
+    operator>=(observer_ptr<_Tp> __p1, observer_ptr<_Up> __p2)
+    {
+      return !(__p1 < __p2);
+    }
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace fundamentals_v2
+} // namespace experimental
+
+template <typename _Tp>
+  struct hash<experimental::observer_ptr<_Tp>>
+  {
+    using result_type = size_t;
+    using argument_type = experimental::observer_ptr<_Tp>;
+
+    size_t
+    operator()(const experimental::observer_ptr<_Tp>& __t) const
+    noexcept(noexcept(hash<typename add_pointer<_Tp>::type> {}(__t.get())))
+    {
+      return hash<typename add_pointer<_Tp>::type> {}(__t.get());
+    }
+
+  };
+
+} // namespace std
+
+#endif // __cplusplus <= 201103L
+
+#endif // _GLIBCXX_EXPERIMENTAL_MEMORY
