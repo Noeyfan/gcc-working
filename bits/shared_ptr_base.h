@@ -353,6 +353,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     class enable_shared_from_this;
 
+  namespace experimental{
+  inline namespace fundamentals_v1 {
+  template<typename _Tp>
+    class enable_shared_from_this;
+  }
+  }
+
   template<_Lock_policy _Lp = __default_lock_policy>
     class __weak_count;
 
@@ -491,6 +498,71 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Impl _M_impl;
     };
 
+  // combine _Sp_counted_ptr with _Sp_counted_deleter
+  template<typename _Ptr, typename _Deleter, typename _Alloc, _Lock_policy _Lp>
+    class _Sp_counted_array : public _Sp_counted_base<_Lp> 
+    {
+      class _Impl : _Sp_ebo_helper<0, _Deleter>, _Sp_ebo_helper<1, _Alloc>
+      {
+        typedef _Sp_ebo_helper<0, _Deleter>	_Del_base;
+        typedef _Sp_ebo_helper<1, _Alloc>	_Alloc_base;
+          
+      public:
+        _Impl(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+        : _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
+        { }
+        
+        _Deleter& _M_del() noexcept { return _Del_base::_S_get(*this); }
+        _Alloc& _M_alloc() noexcept { return _Alloc_base::_S_get(*this); }
+        
+        _Ptr _M_ptr;
+      };
+
+    public:
+      using __allocator_type = __alloc_rebind<_Alloc, _Sp_counted_array>;
+
+      _Sp_counted_array(_Ptr __p) noexcept
+      : _M_impl(__p, _Deleter(), _Alloc()) { }
+      
+      // __d(__p) must not throw.
+      _Sp_counted_array(_Ptr __p, _Deleter __d) noexcept
+      : _M_impl(__p, __d, _Alloc()) { }
+      
+      // __d(__p) must not throw.
+      _Sp_counted_array(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+      : _M_impl(__p, __d, __a) { }
+      
+      ~_Sp_counted_array() noexcept { }
+      
+      virtual void
+      _M_dispose() noexcept
+      { _M_impl._M_del()(_M_impl._M_ptr); }
+      
+      virtual void
+      _M_destroy() noexcept
+      {
+        typedef typename allocator_traits<_Alloc>::template
+        rebind_traits<_Sp_counted_array> _Alloc_traits;
+        typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
+        _Alloc_traits::destroy(__a, this);
+        _Alloc_traits::deallocate(__a, this, 1);
+      }
+      
+      virtual void*
+      _M_get_deleter(const std::type_info& __ti) noexcept
+      {
+#ifdef __GXX_RTTI
+        return __ti == typeid(_Deleter) ? &_M_impl._M_del() : nullptr;
+#else
+        return nullptr;
+#endif
+      }
+        
+    private:
+      _Impl _M_impl;
+    };
+
+
   // helpers for make_shared / allocate_shared
 
   struct _Sp_make_shared_tag { };
@@ -566,19 +638,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { }
 
       template<typename _Ptr>
-        explicit
-	__shared_count(_Ptr __p) : _M_pi(0)
-	{
-	  __try
-	    {
-	      _M_pi = new _Sp_counted_ptr<_Ptr, _Lp>(__p);
-	    }
-	  __catch(...)
-	    {
-	      delete __p;
-	      __throw_exception_again;
-	    }
-	}
+	explicit
+	__shared_count(_Ptr __p)
+	: __shared_count(__p, [](_Ptr __p){delete __p;}, allocator<void>())
+	{ }
 
       template<typename _Ptr, typename _Deleter>
 	__shared_count(_Ptr __p, _Deleter __d)
@@ -588,7 +651,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Ptr, typename _Deleter, typename _Alloc>
 	__shared_count(_Ptr __p, _Deleter __d, _Alloc __a) : _M_pi(0)
 	{
-	  typedef _Sp_counted_deleter<_Ptr, _Deleter, _Alloc, _Lp> _Sp_cd_type;
+	  typedef _Sp_counted_array<_Ptr, _Deleter, _Alloc, _Lp> _Sp_cd_type;
 	  __try
 	    {
 	      typename _Sp_cd_type::__allocator_type __a2(__a);
@@ -1179,6 +1242,127 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       _Tp*	   	   _M_ptr;         // Contained pointer.
       __shared_count<_Lp>  _M_refcount;    // Reference counter.
+    };
+
+  // extend shared_ptr to support array
+  template <typename _Tp>
+    struct __libfund_v1 { using type = _Tp; };
+
+  // alias for original __shared_ptr
+  template <typename _Tp, _Lock_policy _Lp>
+    class __shared_ptr<__libfund_v1<_Tp>, _Lp> : __shared_ptr<_Tp, _Lp>
+    { };
+
+  // array support
+  template<typename _Tp, _Lock_policy _Lp, unsigned N>
+    class __shared_ptr<__libfund_v1<_Tp[N]>, _Lp>
+    {
+      template<typename _Ptr>
+	using _Convertible
+	  = typename enable_if<is_convertible<_Ptr, _Tp*>::value>::type;
+    public:
+      using element_type = typename std::remove_extent<_Tp>::type;
+      
+      constexpr __shared_ptr() = default;
+      
+      template<typename _Tp1>
+	explicit __shared_ptr(_Tp1* __p)
+      	: _M_ptr(__p), _M_refcount(__p, _Array_Deleter()) // default deleter
+      	{
+	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
+      	  static_assert( !is_void<_Tp1>::value, "incomplete type" );
+      	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
+      	  // enable shared
+      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
+      	  std::cout << "array shared_ptr basic constructor" << "\n";
+      	}
+      
+      template<typename _Tp1, typename _Deleter>
+	__shared_ptr(_Tp1* __p, _Deleter __d)
+      	: _M_ptr(__p), _M_refcount(__p, __d) // custom deleter // nullptr
+      	{
+      	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
+      	  // enable shared
+      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
+      	  std::cout << "array shared_ptr custom_deleter constructor" << "\n";
+      	}
+      
+      template<typename _Tp1, typename _Deleter, typename _Alloc>
+	__shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
+      	: _M_ptr(__p), _M_refcount(__p, __d, std::move(__a))
+      	{
+      	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
+      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
+      	}
+      
+      template<typename _Tp1>
+	__shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r, _Tp* __p) noexcept
+      	: _M_ptr(__p), _M_refcount(__r._M_refcount)
+      	{ }
+      
+      template<typename _Tp1>
+	explicit __shared_ptr(const __weak_ptr<_Tp1, _Lp>& __r)
+      	: _M_refcount(__r._M_refcount) // may throw
+      	{
+      	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
+      	  _M_ptr = __r._M_ptr;
+      	}
+      
+      ~__shared_ptr() = default;
+      
+      //observers
+      _Tp*
+      get() const noexcept
+      {	return _M_ptr; }
+      
+      long
+      use_count() const noexcept
+      { return _M_refcount._M_get_use_count(); }
+      
+      __shared_ptr(const __weak_ptr<_Tp[], _Lp>& __r, std::nothrow_t)
+      : _M_refcount(__r._M_refcount, std::nothrow)
+      {
+        _M_ptr = _M_refcount._M_get_use_count() ?
+        __r._M_ptr : nullptr;
+      }
+      
+    protected:
+        
+      // forward args for shared_count
+      template<typename _Alloc, typename... _Args>
+	__shared_ptr(_Sp_make_shared_tag __tag, const _Alloc& __a,
+      	             _Args&&... __args)
+      	: _M_ptr(), _M_refcount(__tag, (_Tp*)0, __a,
+      	                        std::forward<_Args>(__args)...)
+      	{
+      	  void* __p = _M_refcount._M_get_deleter(typeid(__tag));
+      	  _M_ptr = static_cast<_Tp*>(__p);
+      	  __enable_shared_from_this_helper(_M_refcount, _M_ptr, _M_ptr);
+      	}
+      
+      struct _Array_Deleter
+      {
+        void
+        operator()(_Tp const *__p) const
+        {
+          delete [] __p;
+          std::cout << "array shared_ptr default destructor" << "\n";
+        }
+      };
+      
+    private:
+      void*
+      _M_get_deleter(const std::type_info& __ti) const noexcept
+      {return _M_refcount._M_get_deleter(__ti); }
+      
+      template<typename _Tp1, _Lock_policy _Lp1> friend class __weak_ptr;
+      template<typename _Tp1, _Lock_policy _Lp1> friend class __shared_ptr;
+      
+      template<typename _Del, typename _Tp1, _Lock_policy _Lp1>
+	friend _Del* get_deleter(const __shared_ptr<_Tp1, _Lp1>&) noexcept;
+      
+      _Tp*		  _M_ptr;	//ptr
+      __shared_count<_Lp> _M_refcount;	//ref counter
     };
 
 
