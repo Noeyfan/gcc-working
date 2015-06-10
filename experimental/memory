@@ -494,6 +494,106 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      operator>=(nullptr_t, const shared_ptr<_Tp>& __a) noexcept
      { return !(nullptr < __a); }
 
+   // C++14 §20.8.2.2.8
+   template<typename _Tp>
+     inline void
+     swap(shared_ptr<_Tp>& __a, shared_ptr<_Tp>& __b) noexcept
+     { __a.swap(__b); }
+
+   // 8.2.1.3, shared_ptr casts
+   template<typename _Tp, typename _Tp1>
+     inline shared_ptr<_Tp>
+     static_pointer_cast(const shared_ptr<_Tp1>& __r) noexcept
+     { return shared_ptr<_Tp>(__r, static_cast<_Tp*>(__r.get())); }
+
+   template<typename _Tp, typename _Tp1>
+     inline shared_ptr<_Tp>
+     dynamic_pointer_cast(const shared_ptr<_Tp1>& __r) noexcept
+     {
+       if (_Tp* __p = dynamic_cast<_Tp*>(__r.get()))
+         return shared_ptr<_Tp>(__r, __p);
+       return shared_ptr<_Tp>();
+     }
+
+   template<typename _Tp, typename _Tp1>
+     inline shared_ptr<_Tp>
+     const_pointer_cast(const shared_ptr<_Tp1>& __r) noexcept
+     { return shared_ptr<_Tp>(__r, const_cast<_Tp*>(__r.get())); }
+
+   template<typename _Tp, typename _Tp1>
+     inline shared_ptr<_Tp>
+     reinterpret_pointer_cast(const shared_ptr<_Tp1>& __r) noexcept
+     { return shared_ptr<_Tp>(__r, reinterpret_cast<_Tp*>(__r.get())); }
+
+   // C++14 §20.8.2.6
+   template<typename _Tp>
+     inline bool
+     atomic_is_lock_free(const shared_ptr<_Tp>* __p)
+     { return std::atomic_is_lock_free<_Tp, __default_lock_policy>(__p); }
+
+   template<typename _Tp>
+     shared_ptr<_Tp> atomic_load(const shared_ptr<_Tp>* __p)
+     { return std::atomic_load<_Tp>(__p); }
+
+   template<typename _Tp>
+     shared_ptr<_Tp>
+     atomic_load_explicit(const shared_ptr<_Tp>* __p, memory_order __mo)
+     { return std::atomic_load_explicit<_Tp>(__p, __mo); }
+
+   template<typename _Tp>
+     void atomic_store(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
+     { return std::atomic_store<_Tp>(__p, __r); }
+
+   template<typename _Tp>
+     shared_ptr<_Tp>
+     atomic_store_explicit(const shared_ptr<_Tp>* __p,
+			   shared_ptr<_Tp> __r,
+			   memory_order __mo)
+     { return std::atomic_store_explicit<_Tp>(__p, __r, __mo); }
+
+   template<typename _Tp>
+     void atomic_exchange(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
+     { return std::atomic_exchange<_Tp>(__p, __r); }
+
+   template<typename _Tp>
+     shared_ptr<_Tp>
+     atomic_exchange_explicit(const shared_ptr<_Tp>* __p,
+			      shared_ptr<_Tp> __r,
+			      memory_order __mo)
+     { return std::atomic_exchange_explicit<_Tp>(__p, __r, __mo); }
+
+   template<typename _Tp>
+     bool atomic_compare_exchange_weak(shared_ptr<_Tp>* __p,
+				       shared_ptr<_Tp>* __v,
+				       shared_ptr<_Tp> __w) 
+     { return std::atomic_compare_exchange_weak<_Tp>(__p, __v, __w); }
+
+   template<typename _Tp>
+     bool atomic_compare_exchange_strong(shared_ptr<_Tp>* __p,
+				       shared_ptr<_Tp>* __v,
+				       shared_ptr<_Tp> __w) 
+     { return std::atomic_compare_exchange_strong<_Tp>(__p, __v, __w); }
+
+   template<typename _Tp>
+     bool atomic_compare_exchange_weak_explicit(shared_ptr<_Tp>* __p,
+						shared_ptr<_Tp>* __v,
+						shared_ptr<_Tp> __w,
+						memory_order __success, 
+						memory_order __failure) 
+     { return std::atomic_compare_exchange_weak_explicit<_Tp>(__p, __v, __w,
+							      __success,
+							      __failure); }
+
+   template<typename _Tp>
+     bool atomic_compare_exchange_strong_explicit(shared_ptr<_Tp>* __p,
+						  shared_ptr<_Tp>* __v,
+						  shared_ptr<_Tp> __w,
+						  memory_order __success, 
+						  memory_order __failure) 
+     { return std::atomic_compare_exchange_strong_explicit<_Tp>(__p, __v, __w,
+								  __success,
+								  __failure); }
+
   //enable_shared_from_this
   template<typename _Tp>
     class enable_shared_from_this
@@ -517,6 +617,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       shared_ptr<const _Tp>
       shared_from_this() const
       { return shared_ptr<const _Tp>(this->_M_weak_this); }
+
     private:
       template<typename _Tp1>
 	void
