@@ -441,13 +441,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       class _Impl : _Sp_ebo_helper<0, _Deleter>, _Sp_ebo_helper<1, _Alloc>
       {
-        typedef _Sp_ebo_helper<0, _Deleter>	_Del_base;
+	typedef _Sp_ebo_helper<0, _Deleter>	_Del_base;
         typedef _Sp_ebo_helper<1, _Alloc>	_Alloc_base;
           
       public:
-        _Impl(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
-        : _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
-        { }
+	_Impl(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+      	: _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
+      	{ }
         
         _Deleter& _M_del() noexcept { return _Del_base::_S_get(*this); }
         _Alloc& _M_alloc() noexcept { return _Alloc_base::_S_get(*this); }
@@ -478,27 +478,26 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual void
       _M_destroy() noexcept
       {
-        typedef typename allocator_traits<_Alloc>::template
-        rebind_traits<_Sp_counted_array> _Alloc_traits;
-        typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
-        _Alloc_traits::destroy(__a, this);
-        _Alloc_traits::deallocate(__a, this, 1);
+	typedef typename allocator_traits<_Alloc>::template
+      	rebind_traits<_Sp_counted_array> _Alloc_traits;
+      	typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
+      	_Alloc_traits::destroy(__a, this);
+      	_Alloc_traits::deallocate(__a, this, 1);
       }
       
       virtual void*
       _M_get_deleter(const std::type_info& __ti) noexcept
       {
 #ifdef __GXX_RTTI
-        return __ti == typeid(_Deleter) ? &_M_impl._M_del() : nullptr;
+	return __ti == typeid(_Deleter) ? &_M_impl._M_del() : nullptr;
 #else
         return nullptr;
 #endif
       }
-        
+
     private:
       _Impl _M_impl;
     };
-
 
   // helpers for make_shared / allocate_shared
 
@@ -1204,31 +1203,31 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1>
 	explicit __shared_ptr(_Tp1* __p)
-        : __base_type(__p)
+	: __base_type(__p)
 	{ }
 
       template<typename _Tp1, typename _Deleter>
-        __shared_ptr(_Tp1* __p, _Deleter __d)
-        : __base_type(__p, __d)
+	__shared_ptr(_Tp1* __p, _Deleter __d)
+	: __base_type(__p, __d)
 	{ }
 
       template<typename _Tp1, typename _Deleter, typename _Alloc>
-        __shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
+	__shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
 	: __base_type(__p, __d, __a)
 	{ }
 
       template<typename _Deleter>
-        __shared_ptr(nullptr_t __p, _Deleter __d)
-        : __base_type(__p, __d)
-        { }
+	__shared_ptr(nullptr_t __p, _Deleter __d)
+	: __base_type(__p, __d)
+	{ }
 
       template<typename _Deleter, typename _Alloc>
-        __shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
+	__shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
 	: __base_type(__p, __d, __a)
 	{ }
 
       template<typename _Tp1>
-        __shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r, _Tp* __p) noexcept
+	__shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r, _Tp* __p) noexcept
 	: __base_type(__r, __p)
 	{ }
 
@@ -1237,17 +1236,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       ~__shared_ptr() = default;
 
       template<typename _Tp1, typename = _Convertible<_Tp1*>>
-        __shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r) noexcept
+	__shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r) noexcept
 	: __base_type(__r)
 	{ }
 
       template<typename _Tp1, typename = _Convertible<_Tp1*>>
-        __shared_ptr(__shared_ptr<__libfund_v1<_Tp1>, _Lp>&& __r) noexcept
+	__shared_ptr(__shared_ptr<__libfund_v1<_Tp1>, _Lp>&& __r) noexcept
 	: __base_type(__r)
 	{ }
 
       template<typename _Tp1>
-        explicit __shared_ptr(const __weak_ptr<__libfund_v1<_Tp1>, _Lp>& __r)
+	explicit __shared_ptr(const __weak_ptr<__libfund_v1<_Tp1>, _Lp>& __r)
 	: __base_type(__r)
 	{ }
 
@@ -1290,7 +1289,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	  static_assert( !is_void<_Tp1>::value, "incomplete type" );
       	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	  std::cout << "array shared_ptr basic constructor" << "\n";
       	}
       
       template<typename _Tp1, typename _Deleter>
@@ -1299,7 +1297,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	{
       	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	  std::cout << "array shared_ptr custom_deleter constructor" << "\n";
       	}
       
       template<typename _Tp1, typename _Deleter, typename _Alloc>
@@ -1309,6 +1306,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
       	}
+
       template<typename _Deleter>
 	__shared_ptr(nullptr_t __p, _Deleter __d)
 	: _M_ptr(0), _M_refcount(__p, __d)
@@ -1429,11 +1427,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
       _Tp&
-	operator[](ptrdiff_t i) const noexcept
-	{
-	  _GLIBCXX_DEBUG_ASSERT(get() !=0 && i>=0);
-	  return _M_ptr[i];
-	}
+      operator[](ptrdiff_t i) const noexcept
+      {
+        _GLIBCXX_DEBUG_ASSERT(get() !=0 && i>=0);
+        return _M_ptr[i];
+      }
       
       _Tp*
       get() const noexcept
@@ -1487,7 +1485,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         operator()(_Tp const *__p) const
         {
           delete [] __p;
-          std::cout << "array shared_ptr default destructor" << "\n";
         }
       };
       
@@ -1545,7 +1542,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	  static_assert( !is_void<_Tp1>::value, "incomplete type" );
       	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	  std::cout << "array [] shared_ptr basic constructor" << "\n";
       	}
       
       template<typename _Tp1, typename _Deleter>
@@ -1554,7 +1550,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	{
       	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	  std::cout << "array [] shared_ptr custom_deleter constructor" << "\n";
       	}
       
       template<typename _Tp1, typename _Deleter, typename _Alloc>
@@ -1564,6 +1559,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
       	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
       	}
+
       template<typename _Deleter>
 	__shared_ptr(nullptr_t __p, _Deleter __d)
 	: _M_ptr(0), _M_refcount(__p, __d)
@@ -1616,7 +1612,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __enable_shared_from_this_helper(_M_refcount, __raw, __raw);
 	  }
 
-      // Array did not support construct from auto_ptr
+      // shared_ptr Array did not support construct from auto_ptr
 
       constexpr __shared_ptr(nullptr_t) noexcept : __shared_ptr() { }
 
@@ -1684,10 +1680,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
       _Tp&
-	operator[](ptrdiff_t i) const noexcept
-	{
-	  return _M_ptr[i];
-	}
+      operator[](ptrdiff_t i) const noexcept
+      {
+        return _M_ptr[i];
+      }
       
       _Tp*
       get() const noexcept
@@ -1741,7 +1737,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         operator()(_Tp const *__p) const
         {
           delete [] __p;
-          std::cout << "array [] shared_ptr default destructor" << "\n";
         }
       };
       

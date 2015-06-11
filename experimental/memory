@@ -1,4 +1,3 @@
-#include <iostream>
 // <experimental/memory> -*- C++ -*-
 
 // Copyright (C) 2015 Free Software Foundation, Inc.
@@ -570,8 +569,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
    template<typename _Tp>
      bool atomic_compare_exchange_strong(shared_ptr<_Tp>* __p,
-				       shared_ptr<_Tp>* __v,
-				       shared_ptr<_Tp> __w) 
+					 shared_ptr<_Tp>* __v,
+					 shared_ptr<_Tp> __w) 
      { return std::atomic_compare_exchange_strong<_Tp>(__p, __v, __w); }
 
    template<typename _Tp>
@@ -591,8 +590,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 						  memory_order __success, 
 						  memory_order __failure) 
      { return std::atomic_compare_exchange_strong_explicit<_Tp>(__p, __v, __w,
-								  __success,
-								  __failure); }
+								__success,
+								__failure); }
 
   //enable_shared_from_this
   template<typename _Tp>
