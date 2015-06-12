@@ -435,61 +435,60 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Tp _M_tp;
     };
 
-  // rename _Sp_counted_deleter to _Sp_counted_array
+  // Support for custom deleter and/or allocator
   template<typename _Ptr, typename _Deleter, typename _Alloc, _Lock_policy _Lp>
-    class _Sp_counted_array : public _Sp_counted_base<_Lp> 
+    class _Sp_counted_deleter final : public _Sp_counted_base<_Lp>
     {
       class _Impl : _Sp_ebo_helper<0, _Deleter>, _Sp_ebo_helper<1, _Alloc>
       {
 	typedef _Sp_ebo_helper<0, _Deleter>	_Del_base;
-        typedef _Sp_ebo_helper<1, _Alloc>	_Alloc_base;
-          
+	typedef _Sp_ebo_helper<1, _Alloc>	_Alloc_base;
+
       public:
 	_Impl(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
-      	: _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
-      	{ }
-        
-        _Deleter& _M_del() noexcept { return _Del_base::_S_get(*this); }
-        _Alloc& _M_alloc() noexcept { return _Alloc_base::_S_get(*this); }
-        
-        _Ptr _M_ptr;
+	: _M_ptr(__p), _Del_base(__d), _Alloc_base(__a)
+	{ }
+
+	_Deleter& _M_del() noexcept { return _Del_base::_S_get(*this); }
+	_Alloc& _M_alloc() noexcept { return _Alloc_base::_S_get(*this); }
+
+	_Ptr _M_ptr;
       };
 
     public:
-      using __allocator_type = __alloc_rebind<_Alloc, _Sp_counted_array>;
+      using __allocator_type = __alloc_rebind<_Alloc, _Sp_counted_deleter>;
 
-      _Sp_counted_array(_Ptr __p) noexcept
-      : _M_impl(__p, _Deleter(), _Alloc()) { }
-      
       // __d(__p) must not throw.
-      _Sp_counted_array(_Ptr __p, _Deleter __d) noexcept
+      _Sp_counted_deleter(_Ptr __p, _Deleter __d) noexcept
       : _M_impl(__p, __d, _Alloc()) { }
-      
+
       // __d(__p) must not throw.
-      _Sp_counted_array(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
+      _Sp_counted_deleter(_Ptr __p, _Deleter __d, const _Alloc& __a) noexcept
       : _M_impl(__p, __d, __a) { }
-      
-      ~_Sp_counted_array() noexcept { }
-      
+
+      ~_Sp_counted_deleter() noexcept { }
+
       virtual void
       _M_dispose() noexcept
       { _M_impl._M_del()(_M_impl._M_ptr); }
-      
+
       virtual void
       _M_destroy() noexcept
       {
-	typedef typename allocator_traits<_Alloc>::template
-      	rebind_traits<_Sp_counted_array> _Alloc_traits;
-      	typename _Alloc_traits::allocator_type __a(_M_impl._M_alloc());
-      	_Alloc_traits::destroy(__a, this);
-      	_Alloc_traits::deallocate(__a, this, 1);
+	__allocator_type __a(_M_impl._M_alloc());
+	__allocated_ptr<__allocator_type> __guard_ptr{ __a, this };
+	this->~_Sp_counted_deleter();
       }
-      
+
       virtual void*
       _M_get_deleter(const std::type_info& __ti) noexcept
       {
-#ifdef __GXX_RTTI
-	return __ti == typeid(_Deleter) ? &_M_impl._M_del() : nullptr;
+#if __cpp_rtti
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 2400. shared_ptr's get_deleter() should use addressof()
+        return __ti == typeid(_Deleter)
+	  ? std::__addressof(_M_impl._M_del())
+	  : nullptr;
 #else
         return nullptr;
 #endif
@@ -573,12 +572,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr __shared_count() noexcept : _M_pi(0)
       { }
 
-      // replace _Sp_counted_ptr here
       template<typename _Ptr>
-	explicit
-	__shared_count(_Ptr __p)
-	: __shared_count(__p, [](_Ptr __p){delete __p;}, allocator<void>())
-	{ }
+        explicit
+	__shared_count(_Ptr __p) : _M_pi(0)
+	{
+	  __try
+	    {
+	      _M_pi = new _Sp_counted_ptr<_Ptr, _Lp>(__p);
+	    }
+	  __catch(...)
+	    {
+	      delete __p;
+	      __throw_exception_again;
+	    }
+	}
 
       template<typename _Ptr, typename _Deleter>
 	__shared_count(_Ptr __p, _Deleter __d)
@@ -588,7 +595,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Ptr, typename _Deleter, typename _Alloc>
 	__shared_count(_Ptr __p, _Deleter __d, _Alloc __a) : _M_pi(0)
 	{
-	  typedef _Sp_counted_array<_Ptr, _Deleter, _Alloc, _Lp> _Sp_cd_type;
+	  typedef _Sp_counted_deleter<_Ptr, _Deleter, _Alloc, _Lp> _Sp_cd_type;
 	  __try
 	    {
 	      typename _Sp_cd_type::__allocator_type __a2(__a);
@@ -642,7 +649,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      reference_wrapper<typename remove_reference<_Del>::type>,
 	      _Del>::type;
 	  using _Sp_cd_type
-	    = _Sp_counted_array<_Ptr, _Del2, allocator<void>, _Lp>;
+	    = _Sp_counted_deleter<_Ptr, _Del2, allocator<void>, _Lp>;
 	  using _Alloc = allocator<_Sp_cd_type>;
 	  using _Alloc_traits = allocator_traits<_Alloc>;
 	  _Alloc __a;
@@ -724,7 +731,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       _Sp_counted_base<_Lp>*  _M_pi;
     };
-
 
   template<_Lock_policy _Lp>
     class __weak_count
