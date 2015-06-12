@@ -732,6 +732,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Sp_counted_base<_Lp>*  _M_pi;
     };
 
+
   template<_Lock_policy _Lp>
     class __weak_count
     {
