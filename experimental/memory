@@ -239,22 +239,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #define __cpp_lib_experimental_shared_ptr_array 201506
 
-  //  8.2.1
+  // 8.2.1
   template<typename _Tp> class shared_ptr;
+  template<typename _Tp> class weak_ptr;
 
-  //for non default lock policy
   template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
-    using __shared_ptr = std::__shared_ptr<_Tp, _Lp>;
+    using __shared_ptr = std::__shared_ptr<__libfund_v1<_Tp>, _Lp>;
+
+  template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
+    using __weak_ptr = std::__weak_ptr<__libfund_v1<_Tp>, _Lp>;
 
   template<typename _Tp>
-    class shared_ptr : public __shared_ptr<__libfund_v1<_Tp>>
+    class shared_ptr : public __shared_ptr<_Tp>
     {
     public:
       template<typename _Ptr>
 	using _Convertible 
 	  = typename enable_if<is_convertible<_Ptr, _Tp*>::value>::type;
 
-      using __base_type = __shared_ptr<__libfund_v1<_Tp>>;
+      using __base_type = __shared_ptr<_Tp>;
       using element_type = typename remove_extent<_Tp>::type;
 
       // 8.2.1.1, shared_ptr constructors
@@ -300,10 +303,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	: __base_type(std::move(__r)) { }
 
       template<typename _Tp1>
-        explicit shared_ptr(const weak_ptr<__libfund_v1<_Tp1>>& __r)
+        explicit shared_ptr(const weak_ptr<_Tp1>& __r)
         : __base_type(__r) { }
-
-      // construction from auto_ptr is not supported for shared_ptr<T[]>
 
 #if _GLIBCXX_USE_DEPRECATED
       template<typename _Tp1>
@@ -348,7 +349,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return *this;
 	}
       
-      // no auto ptr
+#if _GLIBCXX_USE_DEPRECATED
+      template<typename _Tp1>
+	shared_ptr&
+	operator=(std::auto_ptr<_Tp1>&& __r)
+	{
+	  this->__shared_ptr<_Tp>::operator=(std::move(__r));
+	  return *this;
+	}
+#endif
 
       template <typename _Tp1, typename _Del> 
 	shared_ptr& 
@@ -374,10 +383,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	friend shared_ptr<_Tp1>
 	allocate_shared(const _Alloc& __a, _Args&&...  __args);
 
-      shared_ptr(const weak_ptr<__libfund_v1<_Tp>>& __r, std::nothrow_t)
+      shared_ptr(const weak_ptr<_Tp>& __r, std::nothrow_t)
       : __base_type(__r, std::nothrow) { }
 
-      friend class weak_ptr<__libfund_v1<_Tp>>;
+      friend class weak_ptr<_Tp>;
     };
 
   // C++14 §20.8.2.2.7 //DOING
@@ -524,6 +533,80 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      reinterpret_pointer_cast(const shared_ptr<_Tp1>& __r) noexcept
      { return shared_ptr<_Tp>(__r, reinterpret_cast<_Tp*>(__r.get())); }
 
+   // C++14 §20.8.2.3
+   template<typename _Tp> 
+     class weak_ptr : public __weak_ptr<_Tp>
+     {
+      template<typename _Ptr>
+	using _Convertible 
+	  = typename enable_if<is_convertible<_Ptr, _Tp*>::value>::type;
+
+      using __base_type = __weak_ptr<_Tp>;
+
+   public:
+       constexpr weak_ptr() noexcept = default;
+
+       template<typename _Tp1, typename = _Convertible<_Tp1*>>
+	 weak_ptr(const shared_ptr<_Tp1>& __r) noexcept
+	 : __base_type(__r) { }
+
+       weak_ptr(const weak_ptr&) noexcept = default;
+
+       template<typename _Tp1, typename = _Convertible<_Tp1*>>
+	 weak_ptr(const weak_ptr<_Tp1>& __r) noexcept
+	 : __base_type(__r) { }
+
+       weak_ptr(weak_ptr&&) noexcept = default;
+
+       template<typename _Tp1, typename = _Convertible<_Tp1*>>
+	 weak_ptr(weak_ptr<_Tp1>&& __r) noexcept
+	 : __base_type(std::move(__r)) { }
+
+       weak_ptr&
+       operator=(const weak_ptr& __r) noexcept = default;
+
+       template<typename _Tp1>
+	 weak_ptr&
+	 operator=(const weak_ptr<_Tp1>& __r) noexcept
+	 {
+	   this->__base_type::operator=(__r);
+	   return *this;
+	 }
+
+       template<typename _Tp1>
+	 weak_ptr&
+	 operator=(const shared_ptr<_Tp1>& __r) noexcept
+	 {
+	   this->__base_type::operator=(__r);
+	   return *this;
+	 }
+
+       weak_ptr&
+       operator=(weak_ptr&& __r) noexcept = default;
+
+       template<typename _Tp1>
+	 weak_ptr&
+	 operator=(weak_ptr<_Tp1>&& __r) noexcept
+	 {
+	   this->__base_type::operator=(std::move(__r));
+	   return *this;
+	 }
+
+       shared_ptr<_Tp>
+       lock() const noexcept
+       { return shared_ptr<_Tp>(*this, std::nothrow); }
+     };
+
+
+   // C++14 §20.8.2.3.6
+   template<typename _Tp>
+     inline void
+     swap(weak_ptr<_Tp>& __a, weak_ptr<_Tp>& __b) noexcept
+     { __a.swap(__b); }
+
+   // C++14 §20.8.2.4
+   template<typename _Tp> class owner_less;
+
    // C++14 §20.8.2.6
    template<typename _Tp>
      inline bool
@@ -621,7 +704,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Tp1>
 	void
 	_M_weak_assign(_Tp1* __p, const __shared_count<>& __n) const noexcept
-	{ _M_weak_this._M_assign(__p, __n); }
+	//{ _M_weak_this._M_assign(__p, __n); }
+	{ 
+	  _enable_shared_from_this_helper<_Tp>()._Call_M_assign(_M_weak_this,
+							   __p,__n);
+	}
 
       template<typename _Tp1>
 	friend void 
@@ -633,7 +720,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __pe->_M_weak_assign(const_cast<_Tp1*>(__px), __pn);
 	}
 
-      mutable weak_ptr<__libfund_v1<_Tp>>  _M_weak_this;
+      mutable weak_ptr<_Tp>  _M_weak_this;
     };
 
 _GLIBCXX_END_NAMESPACE_VERSION
