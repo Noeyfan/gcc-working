@@ -1743,7 +1743,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       friend class __enable_shared_from_this<_Tp, _Lp>;
       friend class enable_shared_from_this<_Tp>;
 
-      _Tp*	 	 _M_ptr;         // Contained pointer.
+      _Tp*               _M_ptr;         // Contained pointer.
       __weak_count<_Lp>  _M_refcount;    // Reference counter.
     };
 
@@ -1898,7 +1898,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       friend class _enable_shared_from_this_helper<_Tp, _Lp>;
       friend class enable_shared_from_this<_Tp>;
 
-      element_type*	 _M_ptr;         // Contained pointer.
+      element_type*      _M_ptr;         // Contained pointer.
       __weak_count<_Lp>  _M_refcount;    // Reference counter.
     };
 
