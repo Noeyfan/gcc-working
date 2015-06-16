@@ -1184,7 +1184,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Extend shared_ptr to support arrays
   template<typename _Tp, _Lock_policy _Lp>
-    class __shared_ptr<__libfund_v1<_Tp>, _Lp>
+    class __shared_ptr<__libfund_v1<_Tp>, _Lp> : __shared_ptr<typename remove_extent<_Tp>::type>
     {
       using element_type = typename remove_extent<_Tp>::type;
 
@@ -1208,6 +1208,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       using _Deleter_type
 	= typename conditional<is_array<_Tp>::value, _Array_Deleter, _Normal_Deleter>::type;
+
+      using _base_type = __shared_ptr<element_type>;
 
     public:
 
@@ -1275,7 +1277,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 
       template<typename _Tp1>
-	explicit __shared_ptr(const __weak_ptr<_Tp1, _Lp>& __r)
+	explicit __shared_ptr(const __weak_ptr<__libfund_v1<_Tp1>, _Lp>& __r)
 	: _M_refcount(__r._M_refcount) // may throw
 	{
 	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
@@ -1316,7 +1318,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1, typename _Del>
 	__shared_ptr&
-	operator=(std::unique_ptr<_Tp1, _Del>&& __r)
+	operator=(std::unique_ptr<__libfund_v1<_Tp1>, _Del>&& __r)
 	{
 	  __shared_ptr(std::move(__r)).swap(*this);
 	  return *this;

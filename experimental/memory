@@ -237,7 +237,7 @@ inline namespace fundamentals_v1
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-#define __cpp_lib_experimental_shared_ptr_array 201506
+#define __cpp_lib_experimental_shared_ptr_arrays 201406
 
   // 8.2.1
   template<typename _Tp> class shared_ptr;
