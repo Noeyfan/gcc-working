@@ -865,7 +865,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __enable_shared_from_this_helper(const __shared_count<_Lp>&, ...) noexcept
     { }
 
-
   // extend shared_ptr to support array tag
   template <typename _Tp>
     struct __libfund_v1 { using type = _Tp; };
@@ -1747,10 +1746,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __weak_count<_Lp>  _M_refcount;    // Reference counter.
     };
 
-  // helpers for enable_shared_from_this
+  // helpers for std::experimental::enable_shared_from_this
 
   template<typename _Tp, _Lock_policy _Lp = __default_lock_policy>
-    struct _enable_shared_from_this_helper 
+    struct __helper_for_experimental_enable_shared
     {
       void _Call_M_assign(__weak_ptr<__libfund_v1<_Tp>, _Lp>& __wp, 
 			  _Tp* __ptr, 
@@ -1895,7 +1894,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _Tp1, _Lock_policy _Lp1> friend class __shared_ptr;
       template<typename _Tp1, _Lock_policy _Lp1> friend class __weak_ptr;
       friend class __enable_shared_from_this<_Tp, _Lp>;
-      friend class _enable_shared_from_this_helper<_Tp, _Lp>;
+      friend class __helper_for_experimental_enable_shared<_Tp, _Lp>;
       friend class enable_shared_from_this<_Tp>;
 
       element_type*      _M_ptr;         // Contained pointer.
