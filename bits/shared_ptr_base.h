@@ -1209,7 +1209,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using _Deleter_type
 	= typename conditional<is_array<_Tp>::value, _Array_Deleter, _Normal_Deleter>::type;
 
-      using _base_type = __shared_ptr<element_type>;
+      using __base_type = __shared_ptr<element_type>;
 
     public:
 
@@ -1219,39 +1219,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       
       template<typename _Tp1>
 	explicit __shared_ptr(_Tp1* __p)
-      	: _M_ptr(__p), _M_refcount(__p, _Deleter_type()) // default deleter
-      	{
-	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-      	  static_assert( !is_void<_Tp1>::value, "incomplete type" );
-      	  static_assert( sizeof(_Tp1) > 0, "incomplete type" );
-      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	}
-      
+      	: __base_type(__p, _Deleter_type())
+        { }
+
       template<typename _Tp1, typename _Deleter>
 	__shared_ptr(_Tp1* __p, _Deleter __d)
-      	: _M_ptr(__p), _M_refcount(__p, __d) // custom deleter // nullptr
-      	{
-      	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	}
+      	: __base_type(__p, __d)
+        { }
       
       template<typename _Tp1, typename _Deleter, typename _Alloc>
 	__shared_ptr(_Tp1* __p, _Deleter __d, _Alloc __a)
-      	: _M_ptr(__p), _M_refcount(__p, __d, std::move(__a))
-      	{
-      	  __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
-      	  __enable_shared_from_this_helper(_M_refcount, __p, __p);
-      	}
+      	: __base_type(__p, __d, __a)
+        { }
 
       template<typename _Deleter>
 	__shared_ptr(nullptr_t __p, _Deleter __d)
-	: _M_ptr(0), _M_refcount(__p, __d)
-	{ }
+        : __base_type(__p, __d)
+        { }
 
       template<typename _Deleter, typename _Alloc>
 	__shared_ptr(nullptr_t __p, _Deleter __d, _Alloc __a)
-	: _M_ptr(0), _M_refcount(__p, __d, std::move(__a))
-	{ }
+        : __base_type(__p, __d, __a)
+        { }
 
       template<typename _Tp1>
 	__shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>&
@@ -1285,8 +1274,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 
       template<typename _Tp1, typename _Del, typename
-	      = _Convertible<typename unique_ptr<_Tp1, _Del>::pointer>>
-	  __shared_ptr(std::unique_ptr<_Tp1, _Del>&& __r)
+	      = _Convertible<typename unique_ptr<__libfund_v1<_Tp1>, _Del>::pointer>>
+	  __shared_ptr(std::unique_ptr<__libfund_v1<_Tp1>, _Del>&& __r)
 	  : _M_ptr(__r.get()), _M_refcount()
 	  {
 	    __glibcxx_function_requires(_ConvertibleConcept<_Tp1*, _Tp*>)
@@ -1372,17 +1361,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       element_type*
       get() const noexcept
       {	return _M_ptr; }
-
-      explicit operator bool() const
-      { return _M_ptr == 0 ? false : true; }
       
-      bool
-      unique() const noexcept
-      { return _M_refcount._M_unique(); }
-
-      long
-      use_count() const noexcept
-      { return _M_refcount._M_get_use_count(); }
+      using __base_type::operator bool;
+      using __base_type::unique;
+      using __base_type::use_count;
 
       void
       swap(__shared_ptr<__libfund_v1<_Tp>, _Lp>& __other) noexcept
