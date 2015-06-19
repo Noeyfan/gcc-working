@@ -291,7 +291,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       shared_ptr&
       operator=(shared_ptr&& __r) noexcept
       {
-        std::cout << "head - operator = \n";
 	this->__shared_ptr<_Tp>::operator=(std::move(__r));
 	return *this;
       }
@@ -300,7 +299,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	shared_ptr&
 	operator=(shared_ptr<_Tp1>&& __r) noexcept
 	{
-          std::cout << "head - operator = with tp\n";
 	  this->__shared_ptr<_Tp>::operator=(std::move(__r));
 	  return *this;
 	}
