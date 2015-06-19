@@ -22,15 +22,20 @@
 #include <experimental/memory>
 #include <testsuite_hooks.h>
 
-struct A { };
-
 int
 test01()
 {
-  bool test __attribute__((unused)) = true;
+  int * p = new int[10];
+  std::experimental::shared_ptr<int[10]> a(p);
 
-  std::experimental::shared_ptr<A[10]> a;
-  VERIFY( a.get() == 0 );
+  for(int i = 0; i < 10; i++)
+  { a[i] = i; }
+
+  VERIFY(a.get() == p);
+  VERIFY(a.use_count() == 1);
+  
+  for(int i = 0; i < 10; i++)
+  { VERIFY(a[i] == i); }
 
   return 0;
 }

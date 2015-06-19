@@ -1,4 +1,3 @@
-#include <iostream>
 // shared_ptr and weak_ptr implementation details -*- C++ -*-
 
 // Copyright (C) 2007-2015 Free Software Foundation, Inc.
@@ -1269,8 +1268,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         { }
 
       template<typename _Tp1, typename _Del, typename
-	      = _Convertible<typename unique_ptr<__libfund_v1<_Tp1>, _Del>::pointer>>
-	  __shared_ptr(std::unique_ptr<__libfund_v1<_Tp1>, _Del>&& __r)
+	      = _Convertible<typename unique_ptr<_Tp1, _Del>::pointer>>
+	  __shared_ptr(std::unique_ptr<_Tp1, _Del>&& __r)
           : __base_type(std::move(__r))
           { }
 
@@ -1281,7 +1280,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // reset
       void
       reset() noexcept
-      { __shared_ptr(nullptr, _Deleter_type()).swap(*this); }
+      { 
+        __shared_ptr(nullptr).swap(*this); 
+      }
 
       template<typename _Tp1>
 	void

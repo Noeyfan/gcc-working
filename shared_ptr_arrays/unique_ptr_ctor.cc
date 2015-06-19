@@ -22,15 +22,32 @@
 #include <experimental/memory>
 #include <testsuite_hooks.h>
 
-struct A { };
+int destroyed = 0;
+
+struct A : std::experimental::enable_shared_from_this<A>
+{
+    ~A() { ++destroyed; }
+};
+
+// 8.2.1.1 shared_ptr constructors [memory.smartptr.shared.const]
+
+// Construction from unique_ptr<A[]>
 
 int
 test01()
 {
   bool test __attribute__((unused)) = true;
 
-  std::experimental::shared_ptr<A[10]> a;
-  VERIFY( a.get() == 0 );
+  std::unique_ptr<A[]> up(new A[10]);
+  std::experimental::shared_ptr<A> sp(std::move(up));
+  VERIFY( up.get() == 0 );
+  VERIFY( sp.get() != 0 );
+  VERIFY( sp.use_count() == 1 );
+
+  VERIFY( sp->shared_from_this() != nullptr );
+
+  sp.reset();
+  VERIFY( destroyed == 10 );
 
   return 0;
 }

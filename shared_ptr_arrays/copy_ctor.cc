@@ -19,10 +19,8 @@
 
 // 8.2.1 Class template shared_ptr [memory.smartptr.shared]
 
-
 #include <experimental/memory>
 #include <testsuite_hooks.h>
-
 
 struct A
 {
@@ -44,6 +42,8 @@ struct B : A
 long B::ctor_count = 0;
 long B::dtor_count = 0;
 
+void deleter(A* p) { delete [] p; }
+
 struct reset_count_struct
 {
   ~reset_count_struct()
@@ -55,41 +55,85 @@ struct reset_count_struct
     }
 };
 
-// C++14 §20.8.2.2.3 shared_ptr assignment
+// 8.2.1.1 shared_ptr constructors [memory.smartptr.shared.const]
 
-void
-test01() 
+// Copy construction
+
+int
+test01()
 {
   reset_count_struct __attribute__((unused)) reset;
   bool test __attribute__((unused)) = true;
 
-  std::experimental::shared_ptr<A[10]> a;
-
-  a = std::experimental::shared_ptr<A[10]> ();
-  VERIFY( a.get() == 0 );
+  std::experimental::shared_ptr<A[10]> a1;
+  std::experimental::shared_ptr<A[10]> a2(a1);
+  VERIFY( a2.use_count() == 0 );
   VERIFY( A::ctor_count == 0 );
   VERIFY( A::dtor_count == 0 );
   VERIFY( B::ctor_count == 0 );
   VERIFY( B::dtor_count == 0 );
 
-  a = std::experimental::shared_ptr<A[10]> (new A[10]);
-  VERIFY( a.get() != 0 );
+  return 0;
+}
+
+int
+test02()
+{
+  reset_count_struct __attribute__((unused)) reset;
+  bool test __attribute__((unused)) = true;
+
+  std::experimental::shared_ptr<A[10]> a1(new A[10]);
+  std::experimental::shared_ptr<A[10]> a2(a1);
+  VERIFY( a2.use_count() == 2 );
   VERIFY( A::ctor_count == 10 );
   VERIFY( A::dtor_count == 0 );
   VERIFY( B::ctor_count == 0 );
   VERIFY( B::dtor_count == 0 );
 
-  a = std::experimental::shared_ptr<B[10]> (new B[10]);
-  VERIFY( a.get() != 0 );
-  VERIFY( A::ctor_count == 20 );
-  VERIFY( A::dtor_count == 10 );
-  VERIFY( B::ctor_count == 10 );
-  VERIFY( B::dtor_count == 0 );
+  return 0;
 }
+
+int
+test03()
+{
+  reset_count_struct __attribute__((unused)) reset;
+  bool test __attribute__((unused)) = true;
+
+  std::experimental::shared_ptr<A[10]> a1(new A[10], &deleter);
+  std::experimental::shared_ptr<A[10]> a2(a1);
+  VERIFY( a2.use_count() == 2 );
+  VERIFY( A::ctor_count == 10 );
+  VERIFY( A::dtor_count == 0 );
+  VERIFY( B::ctor_count == 0 );
+  VERIFY( B::dtor_count == 0 );
+
+  return 0;
+}
+
+// should be in copy_neg.cc
+
+//int
+//test04()
+//{
+//  reset_count_struct __attribute__((unused)) reset;
+//  bool test __attribute__((unused)) = true;
+//
+//  std::experimental::shared_ptr<B[10]> b(new B[10]);
+//  std::experimental::shared_ptr<A[10]> a(b);
+//  VERIFY( a.use_count() == 2 );
+//  VERIFY( A::ctor_count == 10 );
+//  VERIFY( A::dtor_count == 0 );
+//  VERIFY( B::ctor_count == 10 );
+//  VERIFY( B::dtor_count == 0 );
+//
+//  return 0;
+//}
 
 int
 main()
 {
   test01();
+  test02();
+  test03();
   return 0;
 }
