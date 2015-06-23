@@ -78,13 +78,6 @@ test01()
   VERIFY( A::dtor_count == 0 );
   VERIFY( B::ctor_count == 0 );
   VERIFY( B::dtor_count == 0 );
-
-  a = std::experimental::shared_ptr<B[10]> (new B[10]);
-  VERIFY( a.get() != 0 );
-  VERIFY( A::ctor_count == 20 );
-  VERIFY( A::dtor_count == 10 );
-  VERIFY( B::ctor_count == 10 );
-  VERIFY( B::dtor_count == 0 );
 }
 
 int

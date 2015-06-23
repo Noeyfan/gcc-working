@@ -36,8 +36,11 @@ test01()
   std::experimental::shared_ptr<A[10]> a1(a);
   std::experimental::weak_ptr<A[10]> wa(a1);
   std::experimental::shared_ptr<A[10]> a2(wa);
+  std::experimental::shared_ptr<A[10]> a3 = wa.lock();
   VERIFY( a2.get() == a );
+  VERIFY( a3.get() == a );
   VERIFY( a2.use_count() == wa.use_count() );
+  VERIFY( a3.use_count() == wa.use_count() );
 
   return 0;
 }
