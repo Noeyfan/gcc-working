@@ -1,4 +1,3 @@
-#include <iostream>
 // shared_ptr and weak_ptr implementation details -*- C++ -*-
 
 // Copyright (C) 2007-2015 Free Software Foundation, Inc.
@@ -71,7 +70,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     virtual char const*
     what() const noexcept;
 
-    virtual ~bad_weak_ptr() noexcept;
+    virtual ~bad_weak_ptr() noexcept;    
   };
 
   // Substitute for bad_weak_ptr object in the case of -fno-exceptions.
@@ -109,31 +108,31 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     class _Sp_counted_base
     : public _Mutex_base<_Lp>
     {
-    public:
+    public:  
       _Sp_counted_base() noexcept
       : _M_use_count(1), _M_weak_count(1) { }
-
+      
       virtual
       ~_Sp_counted_base() noexcept
       { }
-
+  
       // Called when _M_use_count drops to zero, to release the resources
       // managed by *this.
       virtual void
       _M_dispose() noexcept = 0;
-
+      
       // Called when _M_weak_count drops to zero.
       virtual void
       _M_destroy() noexcept
       { delete this; }
-
+      
       virtual void*
       _M_get_deleter(const std::type_info&) noexcept = 0;
 
       void
       _M_add_ref_copy()
       { __gnu_cxx::__atomic_add_dispatch(&_M_use_count, 1); }
-
+  
       void
       _M_add_ref_lock();
 
@@ -168,7 +167,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
               }
 	  }
       }
-
+  
       void
       _M_weak_add_ref() noexcept
       { __gnu_cxx::__atomic_add_dispatch(&_M_weak_count, 1); }
@@ -190,7 +189,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    _M_destroy();
 	  }
       }
-
+  
       long
       _M_get_use_count() const noexcept
       {
@@ -199,7 +198,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         return __atomic_load_n(&_M_use_count, __ATOMIC_RELAXED);
       }
 
-    private:
+    private:  
       _Sp_counted_base(_Sp_counted_base const&) = delete;
       _Sp_counted_base& operator=(_Sp_counted_base const&) = delete;
 
@@ -230,7 +229,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
     }
 
-  template<>
+  template<> 
     inline void
     _Sp_counted_base<_S_atomic>::
     _M_add_ref_lock()
@@ -242,10 +241,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  if (__count == 0)
 	    __throw_bad_weak_ptr();
 	  // Replace the current counter value with the old value + 1, as
-	  // long as it's not changed meanwhile.
+	  // long as it's not changed meanwhile. 
 	}
       while (!__atomic_compare_exchange_n(&_M_use_count, &__count, __count + 1,
-					  true, __ATOMIC_ACQ_REL,
+					  true, __ATOMIC_ACQ_REL, 
 					  __ATOMIC_RELAXED));
     }
 
@@ -1261,8 +1260,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1>
 	__shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>&
-		     __r, _Tp* __p) noexcept
-        : __Base_type(__r, __p)
+		     __r, element_type* __p) noexcept
+        : __Base_type(static_cast<const typename __shared_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&>(__r), __p)
         { }
 
       __shared_ptr(const __shared_ptr&) noexcept = default;
@@ -1271,19 +1271,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1, typename = _Compatible<_Tp1>>
         __shared_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r) noexcept
-        : __Base_type(static_cast<const typename
-                      __shared_ptr<__libfund_v1<_Tp1>>::__Base_type&>(__r))
+        : __Base_type(static_cast<const typename __shared_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&>(__r))
         { }
 
       template<typename _Tp1, typename = _Compatible<_Tp1>>
 	__shared_ptr(__shared_ptr<__libfund_v1<_Tp1>, _Lp>&& __r) noexcept
-        : __Base_type(std::move(static_cast<const typename __shared_ptr<__libfund_v1<_Tp1>>::__Base_type&&>(__r)))
+        : __Base_type(static_cast<typename __shared_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&&>(std::move(__r)))
         { }
 
       template<typename _Tp1>
 	explicit __shared_ptr(const __weak_ptr<__libfund_v1<_Tp1>, _Lp>& __r)
-        : __Base_type(static_cast<const typename
-                      __weak_ptr<__libfund_v1<_Tp1>>::__Base_type&>(__r))
+        : __Base_type(static_cast<const typename __weak_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&>(__r))
         { }
 
       template<typename _Tp1, typename _Del, typename
@@ -1358,7 +1359,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using __Base_type::get;
       using __Base_type::unique;
       using __Base_type::use_count;
-      using __Base_type::swap;
+
+      void
+      swap(__shared_ptr& __other) noexcept
+      { this->__Base_type::swap(__other); }
 
       template<typename _Tp1>
         bool
@@ -1387,8 +1391,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // __weak_ptr::lock()
       __shared_ptr(const __weak_ptr<__libfund_v1<_Tp>, _Lp>& __r,
                    std::nothrow_t)
-      : __Base_type(static_cast<const typename
-                    __weak_ptr<__libfund_v1<_Tp>>::__Base_type&>(__r),
+      : __Base_type(static_cast<const typename __weak_ptr
+                    <__libfund_v1<_Tp>>::__Base_type&>(__r),
                     std::nothrow)
       { }
 
@@ -1709,7 +1713,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       friend class __enable_shared_from_this<_Tp, _Lp>;
       friend class enable_shared_from_this<_Tp>;
 
-      _Tp*               _M_ptr;         // Contained pointer.
+      _Tp*	 	 _M_ptr;         // Contained pointer.
       __weak_count<_Lp>  _M_refcount;    // Reference counter.
     };
 
@@ -1750,14 +1754,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1, typename = _Compatible<_Tp1>>
 	__weak_ptr(const __weak_ptr<__libfund_v1<_Tp1>, _Lp>& __r) noexcept
-	: __Base_type(static_cast<const typename
-                      __weak_ptr<__libfund_v1<_Tp>>::__Base_type&>(__r))
+	: __Base_type(static_cast<const typename __weak_ptr
+                      <__libfund_v1<_Tp>>::__Base_type&>(__r))
         { }
 
       template<typename _Tp1, typename = _Compatible<_Tp1>>
 	__weak_ptr(const __shared_ptr<__libfund_v1<_Tp1>, _Lp>& __r) noexcept
-        : __Base_type(static_cast<const typename
-                      __shared_ptr<__libfund_v1<_Tp1>>::__Base_type&>(__r))
+        : __Base_type(static_cast<const typename __shared_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&>(__r))
 	{ }
 
       __weak_ptr(__weak_ptr&& __r) noexcept
@@ -1766,8 +1770,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Tp1, typename = _Compatible<_Tp1>>
 	__weak_ptr(__weak_ptr<__libfund_v1<_Tp1>, _Lp>&& __r) noexcept
-        : __Base_type(std::move(static_cast<const typename
-                                __weak_ptr<__libfund_v1<_Tp1>>::__Base_type&&>(__r)))
+        : __Base_type(static_cast<typename __weak_ptr
+                      <__libfund_v1<_Tp1>>::__Base_type&&>(std::move(__r)))
         { }
 
       using __Base_type::operator=;
