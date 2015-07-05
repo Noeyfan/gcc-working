@@ -1,2 +1,4 @@
 *.diff
 test/*
+*.out
+.DS_Store
