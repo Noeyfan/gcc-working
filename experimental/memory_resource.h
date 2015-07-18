@@ -3,15 +3,13 @@
 
 #include <memory>
 #include <new>
+#include <atomic>
 #include <cstddef>
 #include <bits/alloc_traits.h>
 
-namespace std
-{
-namespace experimental
-{
-inline namespace fundamentals_v1
-{
+namespace std {
+namespace experimental {
+inline namespace fundamentals_v1 {
 namespace pmr {
   // Decleartion
   class memory_resource;
@@ -26,30 +24,23 @@ namespace pmr {
     using resource_adaptor = resource_adaptor_imp<
       typename allocator_traits<_Alloc>::template rebind_alloc<char>>;
 
-  // Global memory resources TODO
-  memory_resource* new_delete_resource() noexcept
-  { }
-  memory_resource* null_memory_resource() noexcept
-  { }
+  // Global memory resources
+  memory_resource* new_delete_resource() noexcept;
+  memory_resource* null_memory_resource() noexcept;
 
-  // The default memory resource TODO
-  memory_resource* set_default_resource(memory_resource* r) noexcept
-  { }
-  memory_resource* get_default_resource() noexcept
-  { }
+  // The default memory resource
+  memory_resource* get_default_resource() noexcept;
+  memory_resource* set_default_resource(memory_resource* __r) noexcept;
 
-  // Standard memory resources TODO
-  struct pool_options;
-  class synchronized_pool_resource;
-  class unsynchronized_pool_resource;
-  class monotonic_buffer_resource;
+  // Standard memory resources
 
   // 8.5 Class memory_resource
   class memory_resource
   {
     static constexpr size_t __max_align = alignof(max_align_t);
+
   public:
-    virtual ~memory_resource();
+    virtual ~memory_resource() { }
 
     void* allocate(size_t __bytes,
 		   size_t __alignment = __max_align)
@@ -60,13 +51,23 @@ namespace pmr {
     { return do_deallocate(__p, __bytes, __alignment); }
 
     bool is_equal(const memory_resource& __other) const noexcept
-    { return do_is_equal(__other);}
+    { return do_is_equal(__other); }
 
   protected:
-    virtual void* do_allocate(size_t __bytes, size_t __alignment) = 0;
-    virtual void do_deallocate(void* __p, size_t __bytes,
-			       size_t __alignment) = 0;
-    virtual bool do_is_equal(const memory_resource& __other) const noexcept = 0;
+    virtual void*
+    do_allocate(size_t __bytes, size_t __alignment) = 0;
+
+    virtual void
+    do_deallocate(void* __p, size_t __bytes, size_t __alignment) = 0;
+
+    virtual bool
+    do_is_equal(const memory_resource& __other) const noexcept = 0;
+
+  private:
+    friend memory_resource* set_default_resource(memory_resource*);
+    friend memory_resource* get_default_resource();
+
+    static std::atomic<memory_resource*> s_default_resource;
   };
 
   bool operator==(const memory_resource& __a,
@@ -174,7 +175,7 @@ namespace pmr {
 
       polymorphic_allocator() noexcept
       : _M_resource(get_default_resource())
-      { }
+      { } // used here
 
       polymorphic_allocator(memory_resource* __r)
       : _M_resource(__r ? __r : get_default_resource())
@@ -191,14 +192,14 @@ namespace pmr {
       polymorphic_allocator&
 	operator=(const polymorphic_allocator& __rhs) = default;
 
-      _Tp* allocate(size_t __n)
+      _Tp* allocate(size_t __n) // used here
       { return static_cast<_Tp*>(_M_resource->allocate(__n * sizeof(_Tp),
 						       alignof(_Tp))); }
 
       void deallocate(_Tp* __p, size_t __n)
       { _M_resource->deallocate(__p, __n * sizeof(_Tp), alignof(_Tp)); }
 
-      template <typename _Tp1, typename... _Args>
+      template <typename _Tp1, typename... _Args> //used here
 	void construct(_Tp1* __p, _Args&&... __args)
 	{
 	  using _Ctor_imp = __constructor_helper<_Tp1>;
@@ -248,7 +249,7 @@ namespace pmr {
 
       template <typename _Up>
 	void destroy(_Up* __p)
-	{ __p->~T(); }
+	{ __p->~_Up(); }
 
       // Return a default-constructed allocator (no allocator propagation)
       polymorphic_allocator select_on_container_copy_construction() const
@@ -310,11 +311,97 @@ namespace pmr {
 
       allocator_type get_allocator() const { return _M_alloc; }
 
+    protected:
+      virtual void*
+      do_allocate(size_t __bytes, size_t __alignment)
+      {
+	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
+	size_t __new_size = _Aligned_size(__bytes,
+					  _M_supported(__alignment) ?
+					  __alignment : __max_align);
+	return _Aligned_alloc().allocate(__new_size);
+      }
 
+      virtual void
+      do_deallocate(void* __p, size_t __bytes, size_t __alignment)
+      {
+	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
+	size_t __new_size = _Aligned_size(__bytes,
+					  _M_supported(__alignment) ?
+					  __alignment : __max_align);
+	_Aligned_alloc().deallocate(static_cast<typename
+				    _Aligned_alloc::pointer>(__p),
+				    __new_size);
+      }
+
+      virtual bool
+      do_is_equal(const memory_resource& __other) const noexcept
+      {
+	auto __p = dynamic_cast<const resource_adaptor_imp*>(&__other);
+	return __p ? _M_alloc == __p->_M_alloc : false;
+      }
 
     private:
+      // Calculate Aligned Size
+      size_t _Aligned_size(size_t __size, size_t __alignment)
+      { return ((__size - 1)|(__alignment - 1)) + 1; }
+
+      bool _M_supported (size_t __x)
+      { return ((__x != 0) && (__x != 0) && !(__x & (__x - 1))); }
+
       _Alloc _M_alloc;
     };
+
+  // Global memory resources
+  atomic<memory_resource*> memory_resource::s_default_resource;
+
+  memory_resource* new_delete_resource() noexcept
+  {
+    static resource_adaptor<std::allocator<char>> __r;
+    return static_cast<memory_resource*>(&__r);
+  }
+
+  template <typename _Alloc>
+    class __null_memory_resource : private memory_resource
+    {
+    protected:
+      void* do_allocate(size_t __bytes, size_t __alignment)
+      { std::__throw_bad_alloc(); }
+
+      void do_deallocate(void* __p, size_t __bytes, size_t __alignment)
+      { }
+
+      bool do_is_equal(const memory_resource& __other) const noexcept
+      { }
+
+      friend memory_resource* null_memory_resource();
+    };
+
+  memory_resource* null_memory_resource() noexcept
+  {
+    static __null_memory_resource<void> __r;
+    return static_cast<memory_resource*>(&__r);
+  }
+
+  // The default memory resource
+  memory_resource* get_default_resource() noexcept
+  {
+    memory_resource *__ret
+      = memory_resource::s_default_resource.load();
+
+    if (__ret == nullptr) { __ret = new_delete_resource(); }
+    return __ret;
+  }
+
+  memory_resource* set_default_resource(memory_resource* __r) noexcept
+  {
+    if ( __r == nullptr)
+    { __r = new_delete_resource(); }
+
+    memory_resource* __prev = get_default_resource();
+    memory_resource::s_default_resource.store(__r);
+    return __prev;
+  }
 
 }
 }
