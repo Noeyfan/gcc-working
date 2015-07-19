@@ -24,6 +24,9 @@ namespace pmr {
     using resource_adaptor = resource_adaptor_imp<
       typename allocator_traits<_Alloc>::template rebind_alloc<char>>;
 
+  template <int __rule_num>
+    struct __uses_allocator_construction_helper;
+
   // Global memory resources
   memory_resource* new_delete_resource() noexcept;
   memory_resource* null_memory_resource() noexcept;
@@ -40,17 +43,21 @@ namespace pmr {
     static constexpr size_t __max_align = alignof(max_align_t);
 
   public:
-    virtual ~memory_resource() { }
+    virtual
+    ~memory_resource() { }
 
-    void* allocate(size_t __bytes,
-		   size_t __alignment = __max_align)
+    void*
+    allocate(size_t __bytes,
+	     size_t __alignment = __max_align)
     { return do_allocate(__bytes, __alignment); }
 
-    void deallocate(void* __p, size_t __bytes,
-		    size_t __alignment = __max_align)
+    void
+    deallocate(void* __p, size_t __bytes,
+	       size_t __alignment = __max_align)
     { return do_deallocate(__p, __bytes, __alignment); }
 
-    bool is_equal(const memory_resource& __other) const noexcept
+    bool
+    is_equal(const memory_resource& __other) const noexcept
     { return do_is_equal(__other); }
 
   protected:
@@ -67,15 +74,16 @@ namespace pmr {
     friend memory_resource* set_default_resource(memory_resource*);
     friend memory_resource* get_default_resource();
 
-    static std::atomic<memory_resource*> s_default_resource;
   };
 
-  bool operator==(const memory_resource& __a,
-		  const memory_resource& __b) noexcept
+  inline bool
+  operator==(const memory_resource& __a,
+	     const memory_resource& __b) noexcept
   { return &__a == &__b || __a.is_equal(__b); }
 
-  bool operator!=(const memory_resource& __a,
-		  const memory_resource& __b) noexcept
+  inline bool
+  operator!=(const memory_resource& __a,
+	     const memory_resource& __b) noexcept
   { return !(__a == __b); }
 
   template <typename _Tp>
@@ -117,7 +125,7 @@ namespace pmr {
 				 const _Alloc& __a,
 				 true_type,
 				 true_type,
-				 dont_care_type,
+				 false_type,
 				 _Args&&... __args)
       	: _M_tp(std::forward<_Args>(__args)..., __a) { }
 
@@ -133,8 +141,7 @@ namespace pmr {
 	{
 	  static_assert(sizeof(_Alloc) == 0,
 			"Type uses an allocator but "
-			"allocator-aware constructor "
-			"is missing");
+			"allocator-aware constructor " "is missing");
 	}
 
     private:
@@ -175,11 +182,11 @@ namespace pmr {
 
       polymorphic_allocator() noexcept
       : _M_resource(get_default_resource())
-      { } // used here
+      { }
 
       polymorphic_allocator(memory_resource* __r)
-      : _M_resource(__r ? __r : get_default_resource())
-      { }
+      : _M_resource(__r)
+      { _GLIBCXX_DEBUG_ASSERT(__r); }
 
       polymorphic_allocator(const polymorphic_allocator& __other) = default;
 
@@ -259,8 +266,6 @@ namespace pmr {
       { return _M_resource; }
 
     private:
-      memory_resource* _M_resource;
-
       template<typename _Tuple>
 	_Tuple&&
 	_M_construct_p(__uses_alloc0, _Tuple& __t)
@@ -276,6 +281,8 @@ namespace pmr {
 	decltype(auto)
 	_M_construct_p(__uses_alloc2_, tuple<_Args...>& __t)
 	{ return tuple_cat(std::move(__t), make_tuple(this->resources())); }
+
+      memory_resource* _M_resource;
     };
 
   template <class _Tp1, class _Tp2>
@@ -286,7 +293,7 @@ namespace pmr {
   template <class _Tp1, class _Tp2>
     bool operator!=(const polymorphic_allocator<_Tp1>& __a,
 		    const polymorphic_allocator<_Tp2>& __b) noexcept
-    { return ! (__a == __b); }
+    { return !(__a == __b); }
 
   // 8.7.1 resource_adaptor_imp
   template <typename _Alloc>
@@ -337,12 +344,18 @@ namespace pmr {
       virtual bool
       do_is_equal(const memory_resource& __other) const noexcept
       {
+#if __cpp_rtti
 	auto __p = dynamic_cast<const resource_adaptor_imp*>(&__other);
-	return __p ? _M_alloc == __p->_M_alloc : false;
+	return __p ? (_M_alloc == __p->_M_alloc) : false;
+#else
+	return false;
+#endif
       }
 
     private:
       // Calculate Aligned Size
+      // Returns a size that is larger than or equal to __size and divided by
+      // __alignment, where __alignment is required to be the power of 2.
       size_t _Aligned_size(size_t __size, size_t __alignment)
       { return ((__size - 1)|(__alignment - 1)) + 1; }
 
@@ -353,9 +366,15 @@ namespace pmr {
     };
 
   // Global memory resources
-  atomic<memory_resource*> memory_resource::s_default_resource;
+  inline std::atomic<memory_resource*>&
+  _S_get_default_resource() {
+    static std::atomic<memory_resource*>
+      _S_default_resource(new_delete_resource());
+    return _S_default_resource;
+  }
 
-  memory_resource* new_delete_resource() noexcept
+  inline memory_resource*
+  new_delete_resource() noexcept
   {
     static resource_adaptor<std::allocator<char>> __r;
     return static_cast<memory_resource*>(&__r);
@@ -377,30 +396,23 @@ namespace pmr {
       friend memory_resource* null_memory_resource();
     };
 
-  memory_resource* null_memory_resource() noexcept
+  inline memory_resource*
+  null_memory_resource() noexcept
   {
     static __null_memory_resource<void> __r;
     return static_cast<memory_resource*>(&__r);
   }
 
   // The default memory resource
-  memory_resource* get_default_resource() noexcept
+  inline memory_resource*
+  get_default_resource() noexcept
+  { return _S_get_default_resource().load(); }
+
+  inline memory_resource*
+  set_default_resource(memory_resource* __r) noexcept
   {
-    memory_resource *__ret
-      = memory_resource::s_default_resource.load();
-
-    if (__ret == nullptr) { __ret = new_delete_resource(); }
-    return __ret;
-  }
-
-  memory_resource* set_default_resource(memory_resource* __r) noexcept
-  {
-    if ( __r == nullptr)
-    { __r = new_delete_resource(); }
-
-    memory_resource* __prev = get_default_resource();
-    memory_resource::s_default_resource.store(__r);
-    return __prev;
+    std::atomic<memory_resource*> __new_ptr(__r ? __r : new_delete_resource());
+    return __new_ptr.exchange(_S_get_default_resource());
   }
 
 }
