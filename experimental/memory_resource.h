@@ -24,7 +24,7 @@ namespace pmr {
     using resource_adaptor = resource_adaptor_imp<
       typename allocator_traits<_Alloc>::template rebind_alloc<char>>;
 
-  template <int __rule_num>
+  template <typename _Tp>
     struct __uses_allocator_construction_helper;
 
   // Global memory resources
@@ -87,56 +87,56 @@ namespace pmr {
   { return !(__a == __b); }
 
   template <typename _Tp>
-    class __constructor_helper_imp
+    class __uses_allocator_construction_helper_imp
     {
       using dont_care_type = bool;
 
     public:
       // Construct with no allocator
       template <typename... _Args>
-	__constructor_helper_imp(false_type, _Args&&... __args)
+	__uses_allocator_construction_helper_imp(false_type, _Args&&... __args)
       	: _M_tp(std::forward<_Args>(__args)...) { }
 
       // Construct with allocator
       // 1. uses_allocator == false
       // 1.1 no pair construction - ignore allocator
       template <typename _Alloc, typename... _Args>
-	__constructor_helper_imp(allocator_arg_t,
-				 const _Alloc& __a,
-				 false_type,
-				 dont_care_type,
-				 dont_care_type,
-				 _Args&&... __args)
+	__uses_allocator_construction_helper_imp(allocator_arg_t,
+						   const _Alloc& __a,
+						   false_type,
+						   dont_care_type,
+						   dont_care_type,
+						   _Args&&... __args)
       	: _M_tp(std::forward<_Args>(__args)...) { }
 
       // 2. uses_allocator == true && prepend allocator argument
       template <typename _Alloc, typename... _Args>
-	__constructor_helper_imp(allocator_arg_t,
-				 const _Alloc& __a,
-				 true_type,
-				 dont_care_type,
-				 true_type,
-				 _Args&&... __args)
+	__uses_allocator_construction_helper_imp(allocator_arg_t,
+						 const _Alloc& __a,
+						 true_type,
+						 dont_care_type,
+						 true_type,
+						 _Args&&... __args)
       	: _M_tp(allocator_arg, __a, std::forward<_Args>(__args)...) { }
 
       // 3. uses_allocator == true && append allocator argument
       template <typename _Alloc, typename... _Args>
-	__constructor_helper_imp(allocator_arg_t,
-				 const _Alloc& __a,
-				 true_type,
-				 true_type,
-				 false_type,
-				 _Args&&... __args)
+	__uses_allocator_construction_helper_imp(allocator_arg_t,
+						 const _Alloc& __a,
+						 true_type,
+						 true_type,
+						 false_type,
+						 _Args&&... __args)
       	: _M_tp(std::forward<_Args>(__args)..., __a) { }
 
       // 4. ill-formed
       template <typename _Alloc, typename... _Args>
-	__constructor_helper_imp(allocator_arg_t,
-				 const _Alloc& __a,
-				 true_type,
-				 false_type,
-				 false_type,
-				 _Args&&... __args)
+	__uses_allocator_construction_helper_imp(allocator_arg_t,
+						 const _Alloc& __a,
+						 true_type,
+						 false_type,
+						 false_type,
+						 _Args&&... __args)
       	: _M_tp(std::forward<_Args>(__args)...)
 	{
 	  static_assert(sizeof(_Alloc) == 0,
@@ -149,13 +149,16 @@ namespace pmr {
     };
 
   template <typename _Tp>
-    class __constructor_helper : private __constructor_helper_imp<_Tp>
+    class __uses_allocator_construction_helper
+    : private __uses_allocator_construction_helper_imp<_Tp>
     {
-      using _Base = __constructor_helper_imp<_Tp>;
+      using _Base = __uses_allocator_construction_helper_imp<_Tp>;
 
     public:
       template <typename _Alloc, typename... _Args>
-	__constructor_helper(allocator_arg_t, _Alloc&& __a, _Args&&... __args)
+	__uses_allocator_construction_helper(allocator_arg_t,
+					     _Alloc&& __a,
+					     _Args&&... __args)
       	: _Base(allocator_arg, __a,
       	        uses_allocator<_Tp, _Alloc>(),
       	        is_constructible<_Tp, _Args..., _Alloc>(),
@@ -164,7 +167,7 @@ namespace pmr {
       	{ }
 
       template <typename... _Args>
-	__constructor_helper(_Args&&... __args)
+	__uses_allocator_construction_helper(_Args&&... __args)
 	: _Base(false_type(), std::forward<_Args>(__args)...)
 	{ }
 
@@ -209,7 +212,7 @@ namespace pmr {
       template <typename _Tp1, typename... _Args> //used here
 	void construct(_Tp1* __p, _Args&&... __args)
 	{
-	  using _Ctor_imp = __constructor_helper<_Tp1>;
+	  using _Ctor_imp = __uses_allocator_construction_helper<_Tp1>;
 	  ::new ((void*)__p) _Ctor_imp(allocator_arg,
 				       this->resource(),
 				       std::forward<_Args>(__args)...);
@@ -227,7 +230,7 @@ namespace pmr {
 	  auto __y_use_tag =
 	    __use_alloc<_Tp2, memory_resource*, _Args2...>(this->resource());
 
-	  using _Ctor_imp = __constructor_helper<pair<_Tp1, _Tp2>>;
+	  using _Ctor_imp = __uses_allocator_construction_helper<pair<_Tp1, _Tp2>>;
 	  ::new ((void*)__p) _Ctor_imp(piecewise_construct,
 				       _M_construct_p(__x_use_tag, __x),
 				       _M_construct_p(__y_use_tag, __y));
