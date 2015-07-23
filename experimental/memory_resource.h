@@ -1,5 +1,5 @@
-#ifndef _GLIBCXX_MEMORY_RESOURCE
-#define _GLIBCXX_MEMORY_RESOURCE 1
+#ifndef _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE
+#define _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE 1
 
 #include <memory>
 #include <new>
@@ -11,17 +11,16 @@ namespace std {
 namespace experimental {
 inline namespace fundamentals_v1 {
 namespace pmr {
-  // Decleartion
   class memory_resource;
 
   template <typename _Tp>
     class polymorphic_allocator;
 
   template <typename _Alloc>
-    class resource_adaptor_imp;
+    class __resource_adaptor_imp;
 
   template <typename _Alloc>
-    using resource_adaptor = resource_adaptor_imp<
+    using resource_adaptor = __resource_adaptor_imp<
       typename allocator_traits<_Alloc>::template rebind_alloc<char>>;
 
   template <typename _Tp>
@@ -43,8 +42,7 @@ namespace pmr {
     static constexpr size_t __max_align = alignof(max_align_t);
 
   public:
-    virtual
-    ~memory_resource() { }
+    virtual ~memory_resource() { }
 
     void*
     allocate(size_t __bytes,
@@ -86,90 +84,6 @@ namespace pmr {
 	     const memory_resource& __b) noexcept
   { return !(__a == __b); }
 
-  template <typename _Tp>
-    class __uses_allocator_construction_helper_imp
-    {
-      using dont_care_type = bool;
-
-    public:
-      // Construct with no allocator
-      template <typename... _Args>
-	static void _Construct(void* __p, _Args&&... __args)
-	{ ::new(__p) _Tp(std::forward<_Args>(__args)...); }
-
-      // Construct with allocator
-      // 1. uses_allocator == false
-      // 1.1 no pair construction - ignore allocator
-      template <typename _Alloc, typename... _Args>
-	static void _Construct_with_alloc(void* __p,
-					  const _Alloc& __a,
-					  false_type,
-					  dont_care_type,
-					  dont_care_type,
-					  _Args&&... __args)
-	{ ::new(__p) _Tp(std::forward<_Args>(__args)...); }
-
-      // 2. uses_allocator == true && prepend allocator argument
-      template <typename _Alloc, typename... _Args>
-	static void _Construct_with_alloc(void* __p,
-					  const _Alloc& __a,
-					  true_type,
-					  dont_care_type,
-					  true_type,
-					  _Args&&... __args)
-	{ ::new(__p) _Tp(allocator_arg, __a, std::forward<_Args>(__args)...); }
-
-      // 3. uses_allocator == true && append allocator argument
-      template <typename _Alloc, typename... _Args>
-	static void _Construct_with_alloc(void* __p,
-					  const _Alloc& __a,
-					  true_type,
-					  true_type,
-					  false_type,
-					  _Args&&... __args)
-	{ ::new(__p) _Tp(std::forward<_Args>(__args)..., __a); }
-
-      // 4. ill-formed
-      template <typename _Alloc, typename... _Args>
-	static void _Construct_with_alloc(void* __p,
-					  const _Alloc& __a,
-					  true_type,
-					  false_type,
-					  false_type,
-					  _Args&&... __args)
-	{
-	  ::new(__p) _Tp(std::forward<_Args>(__args)...);
-	  static_assert(sizeof(_Alloc) == 0,
-			"Type uses an allocator but "
-			"allocator-aware constructor " "is missing");
-	}
-    };
-
-  template <typename _Tp>
-    class __uses_allocator_construction_helper
-    : private __uses_allocator_construction_helper_imp<_Tp>
-    {
-      using _Base = __uses_allocator_construction_helper_imp<_Tp>;
-
-    public:
-      template <typename _Alloc, typename... _Args>
-	static void _Do_construct(void* __p,
-			   _Alloc&& __a,
-			   _Args&&... __args)
-	{
-	  _Base
-	  ::_Construct_with_alloc(__p, __a, uses_allocator<_Tp, _Alloc>(),
-				  is_constructible<_Tp, _Args..., _Alloc>(),
-				  is_constructible<_Tp, allocator_arg_t,
-				  _Alloc, _Args...>(),
-				  std::forward<_Args>(__args)...);
-	}
-
-      template <typename... _Args>
-	static void _Do_construct(void* __p, _Args&&... __args)
-	{ _Base::_Construct(__p, std::forward<_Args>(__args)...); }
-
-    };
 
   // 8.6 Class template polymorphic_allocator
   template <class _Tp>
@@ -177,6 +91,23 @@ namespace pmr {
     {
       using __uses_alloc1_ = __uses_alloc1<memory_resource*>;
       using __uses_alloc2_ = __uses_alloc2<memory_resource*>;
+
+      template<typename _Tp1, typename... _Args>
+	void
+	_M_construct(__uses_alloc0, _Tp1* __p, _Args&&... __args)
+	{ ::new(__p) _Tp1(std::forward<_Args>(__args)...); }
+
+      template<typename _Tp1, typename... _Args>
+	void
+	_M_construct(__uses_alloc1_, _Tp1* __p, _Args&&...  __args)
+	{ ::new(__p) _Tp1(allocator_arg, this->resource(),
+			  std::forward<_Args>(__args)...); }
+
+      template<typename _Tp1, typename... _Args>
+	void
+	_M_construct(__uses_alloc2_, _Tp1* __p, _Args&&...  __args)
+	{ ::new(__p) _Tp1(std::forward<_Args>(__args)...,
+			  this->resource()); }
 
     public:
       using value_type = _Tp;
@@ -200,7 +131,7 @@ namespace pmr {
       polymorphic_allocator&
 	operator=(const polymorphic_allocator& __rhs) = default;
 
-      _Tp* allocate(size_t __n) // used here
+      _Tp* allocate(size_t __n)
       { return static_cast<_Tp*>(_M_resource->allocate(__n * sizeof(_Tp),
 						       alignof(_Tp))); }
 
@@ -210,9 +141,9 @@ namespace pmr {
       template <typename _Tp1, typename... _Args> //used here
 	void construct(_Tp1* __p, _Args&&... __args)
 	{
-	  using _Ctor_imp = __uses_allocator_construction_helper<_Tp1>;
-	  _Ctor_imp::_Do_construct(__p, this->resource(),
-				   std::forward<_Args>(__args)...);
+	  auto __use_tag = __use_alloc<_Tp1, memory_resource*,
+	       _Args...>(this->resource());
+	  _M_construct(__use_tag, __p, std::forward<_Args>(__args)...);
 	}
 
       // Specializations for pair using piecewise construction
@@ -227,10 +158,9 @@ namespace pmr {
 	  auto __y_use_tag =
 	    __use_alloc<_Tp2, memory_resource*, _Args2...>(this->resource());
 
-	  using _Ctor_imp = __uses_allocator_construction_helper<pair<_Tp1, _Tp2>>;
-	  _Ctor_imp::_Do_construct(__p, piecewise_construct,
-				   _M_construct_p(__x_use_tag, __x),
-				   _M_construct_p(__y_use_tag, __y));
+	  ::new(__p) std::pair<_Tp1, _Tp2>(piecewise_construct,
+					   _M_construct_p(__x_use_tag, __x),
+					   _M_construct_p(__y_use_tag, __y));
 	}
 
       template <typename _Tp1, typename _Tp2>
@@ -273,14 +203,14 @@ namespace pmr {
 
       template<typename... _Args>
 	decltype(auto)
-	_M_construct_p(__uses_alloc1_, tuple<_Args...>& __t)
-	{ return tuple_cat(make_tuple(allocator_arg, this->resources()),
+	_M_construct_p(__uses_alloc1_ __ua, tuple<_Args...>& __t)
+	{ return tuple_cat(make_tuple(allocator_arg, __ua._M_a),
 			   std::move(__t)); }
 
       template<typename... _Args>
 	decltype(auto)
-	_M_construct_p(__uses_alloc2_, tuple<_Args...>& __t)
-	{ return tuple_cat(std::move(__t), make_tuple(this->resources())); }
+	_M_construct_p(__uses_alloc2_ __ua, tuple<_Args...>& __t)
+	{ return tuple_cat(std::move(__t), make_tuple(__ua._M_a)); }
 
       memory_resource* _M_resource;
     };
@@ -295,26 +225,27 @@ namespace pmr {
 		    const polymorphic_allocator<_Tp2>& __b) noexcept
     { return !(__a == __b); }
 
-  // 8.7.1 resource_adaptor_imp
+  // 8.7.1 __resource_adaptor_imp
   template <typename _Alloc>
-    class resource_adaptor_imp : public memory_resource
+    class __resource_adaptor_imp : public memory_resource
     {
     public:
       using allocator_type = _Alloc;
 
-      resource_adaptor_imp() = default;
-      resource_adaptor_imp(const resource_adaptor_imp&) = default;
-      resource_adaptor_imp(resource_adaptor_imp&&) = default;
+      __resource_adaptor_imp() = default;
+      __resource_adaptor_imp(const __resource_adaptor_imp&) = default;
+      __resource_adaptor_imp(__resource_adaptor_imp&&) = default;
 
-      explicit resource_adaptor_imp(const _Alloc& __a2)
+      explicit __resource_adaptor_imp(const _Alloc& __a2)
       : _M_alloc(__a2)
       { }
 
-      explicit resource_adaptor_imp(_Alloc&& __a2)
+      explicit __resource_adaptor_imp(_Alloc&& __a2)
       : _M_alloc(std::move(__a2))
       { }
 
-      resource_adaptor_imp& operator=(const resource_adaptor_imp&) = default;
+      __resource_adaptor_imp&
+      operator=(const __resource_adaptor_imp&) = default;
 
       allocator_type get_allocator() const { return _M_alloc; }
 
@@ -344,12 +275,8 @@ namespace pmr {
       virtual bool
       do_is_equal(const memory_resource& __other) const noexcept
       {
-#if __cpp_rtti
-	auto __p = dynamic_cast<const resource_adaptor_imp*>(&__other);
+	auto __p = dynamic_cast<const __resource_adaptor_imp*>(&__other);
 	return __p ? (_M_alloc == __p->_M_alloc) : false;
-#else
-	return false;
-#endif
       }
 
     private:
@@ -411,8 +338,9 @@ namespace pmr {
   inline memory_resource*
   set_default_resource(memory_resource* __r) noexcept
   {
-    std::atomic<memory_resource*> __new_ptr(__r ? __r : new_delete_resource());
-    return __new_ptr.exchange(_S_get_default_resource());
+    if ( __r == nullptr)
+      __r = new_delete_resource();
+    return _S_get_default_resource().exchange(__r);
   }
 
 }
