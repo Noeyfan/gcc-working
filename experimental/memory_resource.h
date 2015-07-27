@@ -67,11 +67,6 @@ namespace pmr {
 
     virtual bool
     do_is_equal(const memory_resource& __other) const noexcept = 0;
-
-  private:
-    friend memory_resource* set_default_resource(memory_resource*);
-    friend memory_resource* get_default_resource();
-
   };
 
   inline bool
@@ -294,7 +289,8 @@ namespace pmr {
 
   // Global memory resources
   inline std::atomic<memory_resource*>&
-  _S_get_default_resource() {
+  _S_get_default_resource()
+  {
     static std::atomic<memory_resource*>
       _S_default_resource(new_delete_resource());
     return _S_default_resource;
