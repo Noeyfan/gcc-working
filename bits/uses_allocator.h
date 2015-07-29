@@ -35,6 +35,18 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+  struct __erased_type { };
+
+  template<typename _Alloc, typename _Tp>
+    struct __erased_type_helper
+    : is_convertible<_Alloc, _Tp>
+    { };
+
+  template<typename _Alloc>
+    struct __erased_type_helper<_Alloc, __erased_type>
+    : true_type
+    { };
+
   /// [allocator.tag]
   struct allocator_arg_t { };
 
@@ -47,7 +59,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp, typename _Alloc>
     struct __uses_allocator_helper<_Tp, _Alloc,
 				   __void_t<typename _Tp::allocator_type>>
-    : is_convertible<_Alloc, typename _Tp::allocator_type>::type
+    : __erased_type_helper<_Alloc, typename _Tp::allocator_type>::type
     { };
 
   /// [allocator.uses.trait]
