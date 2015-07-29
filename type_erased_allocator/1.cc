@@ -35,28 +35,24 @@ using std::experimental::pmr::set_default_resource;
 struct A
 {
   A() { ++ctor_count; }
-  virtual ~A() { ++dtor_count; }
+  ~A() { ++dtor_count; }
   static int ctor_count;
   static int dtor_count;
 };
 int A::ctor_count = 0;
 int A::dtor_count = 0;
 
-class CountedResource : public memory_resource
+struct CountedResource : public memory_resource
 {
 public:
   CountedResource() = default;
   ~ CountedResource() = default;
 
-  static void clear()
-  {
-    alloc_count  = 0;
-    dalloc_count = 0;
-  }
-
   static size_t get_alloc_count()  { return alloc_count;  }
   static size_t get_dalloc_count() { return dalloc_count; }
 
+  static size_t  alloc_count;
+  static size_t  dalloc_count;
 protected:
   void* do_allocate(size_t bytes, size_t alignment)
   {
@@ -75,13 +71,17 @@ protected:
 
   bool do_is_equal(const memory_resource& __other) const noexcept
   { return this == &__other; }
-
-private:
-  static size_t  alloc_count;
-  static size_t  dalloc_count;
 };
   size_t  CountedResource::alloc_count  = 0;
   size_t  CountedResource::dalloc_count = 0;
+
+void clear()
+{
+  CountedResource::alloc_count  = 0;
+  CountedResource::dalloc_count = 0;
+  A::ctor_count = 0;
+  A::dtor_count = 0;
+}
 
 // memory resource
 void test01()
@@ -92,7 +92,7 @@ void test01()
   VERIFY(p);
   get_default_resource()->deallocate(p, 5);
 
-  CountedResource::clear();
+  clear();
   CountedResource* cr = new CountedResource();
   set_default_resource(cr);
   VERIFY(get_default_resource() == cr);
@@ -106,7 +106,7 @@ void test01()
 // polymorphic_allocator
 void test02()
 {
-  CountedResource::clear();
+  clear();
   {
     CountedResource cr;
     polymorphic_allocator<A> pa(&cr);
@@ -114,19 +114,36 @@ void test02()
   }
   VERIFY(A::ctor_count == 1);
   VERIFY(A::dtor_count == 6);
-  VERIFY(CountedResource::get_alloc_count()  == 40);
-  VERIFY(CountedResource::get_dalloc_count() == 40);
+  VERIFY(CountedResource::get_alloc_count()  == 5);
+  VERIFY(CountedResource::get_dalloc_count() == 5);
 }
 
 void test03() {
+  clear();
+  CountedResource cr;
+  polymorphic_allocator<A> pa(&cr);
+  A* p = pa.allocate(1);
+  pa.construct(p);
+  pa.destroy(p);
+  pa.deallocate(p, 1);
+  VERIFY(A::ctor_count == 1);
+  VERIFY(A::dtor_count == 1);
+  VERIFY(CountedResource::get_alloc_count()  == 1);
+  VERIFY(CountedResource::get_dalloc_count() == 1);
+}
+
+void test04() {
   polymorphic_allocator<A> pa1(get_default_resource());
   polymorphic_allocator<A> pa2(get_default_resource());
   VERIFY(pa1 == pa2);
+  polymorphic_allocator<A> pa3 = pa2.select_on_container_copy_construction();
+  VERIFY(pa1 == pa3);
 }
 
 int main() {
   test01();
   test02();
   test03();
+  test04();
   return 0;
 }
