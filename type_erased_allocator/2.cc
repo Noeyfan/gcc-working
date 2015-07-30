@@ -21,9 +21,8 @@
 #include <experimental/memory_resource>
 #include <experimental/utility>
 #include <bits/uses_allocator.h>
-//#include <testsuite_hooks.h>
-//#include <testsuite_allocator.h>
-#include "../debug.h"
+#include <testsuite_hooks.h>
+#include <testsuite_allocator.h>
 
 using std::experimental::pmr::polymorphic_allocator;
 using std::experimental::pmr::memory_resource;
@@ -32,7 +31,7 @@ using std::experimental::pmr::get_default_resource;
 using std::experimental::pmr::set_default_resource;
 using std::allocator_arg_t;
 
-enum CtorType { Default, Copy, Move, Other, Tuple };
+enum CtorType { Default, Copy, Move, Other, Tuple, Piecewise_Default, Piecewise_Copy};
 
 // type that takes a memory_resource before other ctor args
 struct A
@@ -80,20 +79,10 @@ struct C
   C(int) : type(Other) { }
 };
 
-// type that used to test piecewise_construct
-struct D
-{
-  int piecewise_type;
-  D(std::tuple<A, B>) : piecewise_type(0) { }
-  D(std::tuple<C, C>) : piecewise_type(1) { }
-  D(const C&, const C&) : piecewise_type(2) { }
-  D(const A&, const B&) : piecewise_type(3) { }
-  D() : piecewise_type(4) { }
-};
-
-// test construct for type that take
-// memory_resource before other ctor args
-void test01() {
+// test construct for type that
+// uses memory_resource* as allocator
+template<typename A>
+void test_uses_alloc() {
   polymorphic_allocator<A> pa;
   A* p = pa.allocate(1);
   A a;
@@ -118,35 +107,9 @@ void test01() {
   pa.deallocate(p, 1);
 }
 
-// test construct for type that memory_resource
-// after other ctor args
-void test02() {
-  polymorphic_allocator<B> pa;
-  B* p = pa.allocate(1);
-  B b;
-
-  pa.construct(p);
-  VERIFY(p->alloc == get_default_resource());
-  VERIFY(p->type == Default);
-  pa.destroy(p);
-
-  pa.construct(p, b);
-  VERIFY(p->type == Copy);
-  pa.destroy(p);
-
-  pa.construct(p, B());
-  VERIFY(p->type == Move);
-  pa.destroy(p);
-
-  pa.construct(p, 1);
-  VERIFY(p->type == Other);
-  pa.destroy(p);
-
-  pa.deallocate(p, 1);
-}
-
 // test construct for type that not using allocator
-void test03() {
+template <typename C>
+void test_non_alloc() {
   polymorphic_allocator<C> pa;
   C* p = pa.allocate(1);
   C b;
@@ -171,58 +134,69 @@ void test03() {
 }
 
 // test piecewise_construct
-void test04() {
-  polymorphic_allocator<std::pair<D, D>> pa;
-  std::pair<D, D>* p = pa.allocate(1);
-  std::tuple<A, B> t1 = std::make_tuple(A(), B());
-  std::tuple<C, C> t2 = std::make_tuple(C(), C());
+template <typename A, typename B>
+void test_pair() {
+  polymorphic_allocator<std::pair<A, B>> pa;
+  std::pair<A, B>* p = pa.allocate(1);
+  std::tuple<> t;
 
-  pa.construct(p, std::piecewise_construct, t2, t2);
-  VERIFY(p->first.piecewise_type == 2);
-  VERIFY(p->second.piecewise_type == 2);
+  // construct(pair<T1, T2>* p, piecewise_construct_t, tuple<...>, tuple<...>)
+  pa.construct(p, std::piecewise_construct, t, t);
+  VERIFY(p->first.type == Default);
+  VERIFY(p->second.type == Default);
   pa.destroy(p);
 
-  pa.construct(p, std::piecewise_construct, t1, t1);
-  VERIFY(p->first.piecewise_type == 3);
-  VERIFY(p->second.piecewise_type == 3);
-  pa.destroy(p);
-
-  pa.deallocate(p, 1);
-}
-
-void test05() {
-  polymorphic_allocator<std::pair<D, D>> pa;
-  std::pair<D, D>* p = pa.allocate(1);
-
+  // construct(pair<T1, T2>* __p)
   pa.construct(p);
-  VERIFY(p->first.piecewise_type == 4);
-  VERIFY(p->second.piecewise_type == 4);
+  VERIFY(p->first.type == Default);
+  VERIFY(p->second.type == Default);
   pa.destroy(p);
 
-  // TODO need thinking
-  pa.construct(p, D(), D());
-  VERIFY(p->first.piecewise_type == 4);
-  VERIFY(p->second.piecewise_type == 4);
+  // construct(pair<T1, T2>* p, U&& x, V&& y)
+  A a; B b;
+  pa.construct(p, a, b);
+  VERIFY(p->first.type == Copy);
+  VERIFY(p->second.type == Copy);
   pa.destroy(p);
 
-  // TODO
-  pa.construct(p, *p);
-  VERIFY(p->first.piecewise_type == 4);
-  VERIFY(p->second.piecewise_type == 4);
+  pa.construct(p, A(), B());
+  VERIFY(p->first.type == Move);
+  VERIFY(p->second.type == Move);
+  auto pp = *p;
   pa.destroy(p);
 
-  // TODO
-  pa.construct(p, std::move(*p));
-  VERIFY(p->first.piecewise_type == 4);
-  VERIFY(p->second.piecewise_type == 4);
+  // construct(pair<T1, T2>* p, const pair<U, V>& x)
+  pa.construct(p, pp);
+  VERIFY(p->first.type == Copy);
+  VERIFY(p->second.type == Copy);
+  pa.destroy(p);
+
+  // construct(pair<T1, T2>* p, pair<U, V>&& x)
+  pa.construct(p, std::move(pp));
+  VERIFY(p->first.type == Move);
+  VERIFY(p->second.type == Move);
   pa.destroy(p);
   pa.deallocate(p, 1);
 }
+
+void test01() {
+  test_uses_alloc<A>();
+  test_uses_alloc<B>();
+  test_non_alloc<C>();
+}
+
+void test02() {
+  test_pair<A, A>();
+  test_pair<A, B>();
+  test_pair<A, C>();
+  test_pair<B, B>();
+  test_pair<B, A>();
+  test_pair<B, C>();
+  test_pair<C, C>();
+}
+
 
 int main() {
   test01();
   test02();
-  test03();
-  test04();
-  test05();
 }
