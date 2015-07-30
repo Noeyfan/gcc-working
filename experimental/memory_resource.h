@@ -199,13 +199,13 @@ namespace pmr {
       template<typename... _Args>
 	decltype(auto)
 	_M_construct_p(__uses_alloc1_ __ua, tuple<_Args...>& __t)
-	{ return tuple_cat(make_tuple(allocator_arg, __ua._M_a),
+	{ return tuple_cat(make_tuple(allocator_arg, *(__ua._M_a)),
 			   std::move(__t)); }
 
       template<typename... _Args>
 	decltype(auto)
 	_M_construct_p(__uses_alloc2_ __ua, tuple<_Args...>& __t)
-	{ return tuple_cat(std::move(__t), make_tuple(__ua._M_a)); }
+	{ return tuple_cat(std::move(__t), make_tuple(*(__ua._M_a))); }
 
       memory_resource* _M_resource;
     };
