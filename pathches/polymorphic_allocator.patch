@@ -1,0 +1,863 @@
+Index: include/bits/uses_allocator.h
+===================================================================
+--- include/bits/uses_allocator.h	(revision 226875)
++++ include/bits/uses_allocator.h	(working copy)
+@@ -35,6 +35,18 @@ namespace std _GLIBCXX_VISIBILITY(default)
+ {
+ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+ 
++  struct __erased_type { };
++
++  template<typename _Alloc, typename _Tp>
++    struct __erased_type_helper
++    : is_convertible<_Alloc, _Tp>
++    { };
++
++  template<typename _Alloc>
++    struct __erased_type_helper<_Alloc, __erased_type>
++    : true_type
++    { };
++
+   /// [allocator.tag]
+   struct allocator_arg_t { };
+ 
+@@ -47,7 +59,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
+   template<typename _Tp, typename _Alloc>
+     struct __uses_allocator_helper<_Tp, _Alloc,
+ 				   __void_t<typename _Tp::allocator_type>>
+-    : is_convertible<_Alloc, typename _Tp::allocator_type>::type
++    : __erased_type_helper<_Alloc, typename _Tp::allocator_type>::type
+     { };
+ 
+   /// [allocator.uses.trait]
+Index: include/experimental/memory_resource
+===================================================================
+--- include/experimental/memory_resource	(revision 0)
++++ include/experimental/memory_resource	(working copy)
+@@ -0,0 +1,377 @@
++// <experimental/memory_resource> -*- C++ -*-
++
++// Copyright (C) 2015 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file experimental/memory
++ *  This is a TS C++ Library header.
++ */
++
++#ifndef _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE
++#define _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE 1
++
++#include <memory>
++#include <new>
++#include <atomic>
++#include <cstddef>
++#include <bits/alloc_traits.h>
++
++namespace std {
++namespace experimental {
++inline namespace fundamentals_v1 {
++namespace pmr {
++  class memory_resource;
++
++  template <typename _Tp>
++    class polymorphic_allocator;
++
++  template <typename _Alloc>
++    class __resource_adaptor_imp;
++
++  template <typename _Alloc>
++    using resource_adaptor = __resource_adaptor_imp<
++      typename allocator_traits<_Alloc>::template rebind_alloc<char>>;
++
++  template <typename _Tp>
++    struct __uses_allocator_construction_helper;
++
++  // Global memory resources
++  memory_resource* new_delete_resource() noexcept;
++  memory_resource* null_memory_resource() noexcept;
++
++  // The default memory resource
++  memory_resource* get_default_resource() noexcept;
++  memory_resource* set_default_resource(memory_resource* __r) noexcept;
++
++  // Standard memory resources
++
++  // 8.5 Class memory_resource
++  class memory_resource
++  {
++    static constexpr size_t __max_align = alignof(max_align_t);
++
++  public:
++    virtual ~memory_resource() { }
++
++    void*
++    allocate(size_t __bytes,
++	     size_t __alignment = __max_align)
++    { return do_allocate(__bytes, __alignment); }
++
++    void
++    deallocate(void* __p, size_t __bytes,
++	       size_t __alignment = __max_align)
++    { return do_deallocate(__p, __bytes, __alignment); }
++
++    bool
++    is_equal(const memory_resource& __other) const noexcept
++    { return do_is_equal(__other); }
++
++  protected:
++    virtual void*
++    do_allocate(size_t __bytes, size_t __alignment) = 0;
++
++    virtual void
++    do_deallocate(void* __p, size_t __bytes, size_t __alignment) = 0;
++
++    virtual bool
++    do_is_equal(const memory_resource& __other) const noexcept = 0;
++  };
++
++  inline bool
++  operator==(const memory_resource& __a,
++	     const memory_resource& __b) noexcept
++  { return &__a == &__b || __a.is_equal(__b); }
++
++  inline bool
++  operator!=(const memory_resource& __a,
++	     const memory_resource& __b) noexcept
++  { return !(__a == __b); }
++
++
++  // 8.6 Class template polymorphic_allocator
++  template <class _Tp>
++    class polymorphic_allocator
++    {
++      using __uses_alloc1_ = __uses_alloc1<memory_resource*>;
++      using __uses_alloc2_ = __uses_alloc2<memory_resource*>;
++
++      template<typename _Tp1, typename... _Args>
++	void
++	_M_construct(__uses_alloc0, _Tp1* __p, _Args&&... __args)
++	{ ::new(__p) _Tp1(std::forward<_Args>(__args)...); }
++
++      template<typename _Tp1, typename... _Args>
++	void
++	_M_construct(__uses_alloc1_, _Tp1* __p, _Args&&...  __args)
++	{ ::new(__p) _Tp1(allocator_arg, this->resource(),
++			  std::forward<_Args>(__args)...); }
++
++      template<typename _Tp1, typename... _Args>
++	void
++	_M_construct(__uses_alloc2_, _Tp1* __p, _Args&&...  __args)
++	{ ::new(__p) _Tp1(std::forward<_Args>(__args)...,
++			  this->resource()); }
++
++    public:
++      using value_type = _Tp;
++
++      polymorphic_allocator() noexcept
++      : _M_resource(get_default_resource())
++      { }
++
++      polymorphic_allocator(memory_resource* __r)
++      : _M_resource(__r)
++      { _GLIBCXX_DEBUG_ASSERT(__r); }
++
++      polymorphic_allocator(const polymorphic_allocator& __other) = default;
++
++      template <typename _Up>
++	polymorphic_allocator(const polymorphic_allocator<_Up>&
++			      __other) noexcept
++	: _M_resource(__other.resource())
++	{ }
++
++      polymorphic_allocator&
++	operator=(const polymorphic_allocator& __rhs) = default;
++
++      _Tp* allocate(size_t __n)
++      { return static_cast<_Tp*>(_M_resource->allocate(__n * sizeof(_Tp),
++						       alignof(_Tp))); }
++
++      void deallocate(_Tp* __p, size_t __n)
++      { _M_resource->deallocate(__p, __n * sizeof(_Tp), alignof(_Tp)); }
++
++      template <typename _Tp1, typename... _Args> //used here
++	void construct(_Tp1* __p, _Args&&... __args)
++	{
++	  auto __use_tag = __use_alloc<_Tp1, memory_resource*,
++	       _Args...>(this->resource());
++	  _M_construct(__use_tag, __p, std::forward<_Args>(__args)...);
++	}
++
++      // Specializations for pair using piecewise construction
++      template <typename _Tp1, typename _Tp2,
++	       typename... _Args1, typename... _Args2>
++	void construct(pair<_Tp1, _Tp2>* __p, piecewise_construct_t,
++		       tuple<_Args1...> __x,
++		       tuple<_Args2...> __y)
++	{
++	  auto __x_use_tag =
++	    __use_alloc<_Tp1, memory_resource*, _Args1...>(this->resource());
++	  auto __y_use_tag =
++	    __use_alloc<_Tp2, memory_resource*, _Args2...>(this->resource());
++
++	  ::new(__p) std::pair<_Tp1, _Tp2>(piecewise_construct,
++					   _M_construct_p(__x_use_tag, __x),
++					   _M_construct_p(__y_use_tag, __y));
++	}
++
++      template <typename _Tp1, typename _Tp2>
++	void construct(pair<_Tp1,_Tp2>* __p)
++	{ this->construct(__p, piecewise_construct, tuple<>(), tuple<>()); }
++
++      template <typename _Tp1, typename _Tp2, typename _Up, typename _Vp>
++	void construct(pair<_Tp1,_Tp2>* __p, _Up&& __x, _Vp&& __y)
++	{ this->construct(__p, piecewise_construct,
++			  forward_as_tuple(std::forward<_Up>(__x)),
++			  forward_as_tuple(std::forward<_Vp>(__y))); }
++
++      template <typename _Tp1, typename _Tp2, typename _Up, typename _Vp>
++	void construct(pair<_Tp1,_Tp2>* __p, const std::pair<_Up, _Vp>& __pr)
++	{ this->construct(__p, piecewise_construct, forward_as_tuple(__pr.first),
++			  forward_as_tuple(__pr.second)); }
++
++      template <typename _Tp1, typename _Tp2, typename _Up, typename _Vp>
++	void construct(pair<_Tp1,_Tp2>* __p, pair<_Up, _Vp>&& __pr)
++	{ this->construct(__p, piecewise_construct,
++			  forward_as_tuple(std::forward<_Up>(__pr.first)),
++			  forward_as_tuple(std::forward<_Vp>(__pr.second))); }
++
++      template <typename _Up>
++	void destroy(_Up* __p)
++	{ __p->~_Up(); }
++
++      // Return a default-constructed allocator (no allocator propagation)
++      polymorphic_allocator select_on_container_copy_construction() const
++      { return polymorphic_allocator(); }
++
++      memory_resource* resource() const
++      { return _M_resource; }
++
++    private:
++      template<typename _Tuple>
++	_Tuple&&
++	_M_construct_p(__uses_alloc0, _Tuple& __t)
++	{ return std::move(__t); }
++
++      template<typename... _Args>
++	decltype(auto)
++	_M_construct_p(__uses_alloc1_ __ua, tuple<_Args...>& __t)
++	{ return tuple_cat(make_tuple(allocator_arg, *(__ua._M_a)),
++			   std::move(__t)); }
++
++      template<typename... _Args>
++	decltype(auto)
++	_M_construct_p(__uses_alloc2_ __ua, tuple<_Args...>& __t)
++	{ return tuple_cat(std::move(__t), make_tuple(*(__ua._M_a))); }
++
++      memory_resource* _M_resource;
++    };
++
++  template <class _Tp1, class _Tp2>
++    bool operator==(const polymorphic_allocator<_Tp1>& __a,
++		    const polymorphic_allocator<_Tp2>& __b) noexcept
++    { return *__a.resource() == *__b.resource(); }
++
++  template <class _Tp1, class _Tp2>
++    bool operator!=(const polymorphic_allocator<_Tp1>& __a,
++		    const polymorphic_allocator<_Tp2>& __b) noexcept
++    { return !(__a == __b); }
++
++  // 8.7.1 __resource_adaptor_imp
++  template <typename _Alloc>
++    class __resource_adaptor_imp : public memory_resource
++    {
++    public:
++      using allocator_type = _Alloc;
++
++      __resource_adaptor_imp() = default;
++      __resource_adaptor_imp(const __resource_adaptor_imp&) = default;
++      __resource_adaptor_imp(__resource_adaptor_imp&&) = default;
++
++      explicit __resource_adaptor_imp(const _Alloc& __a2)
++      : _M_alloc(__a2)
++      { }
++
++      explicit __resource_adaptor_imp(_Alloc&& __a2)
++      : _M_alloc(std::move(__a2))
++      { }
++
++      __resource_adaptor_imp&
++      operator=(const __resource_adaptor_imp&) = default;
++
++      allocator_type get_allocator() const { return _M_alloc; }
++
++    protected:
++      virtual void*
++      do_allocate(size_t __bytes, size_t __alignment)
++      {
++	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
++	size_t __new_size = _S_aligned_size(__bytes,
++					    _M_supported(__alignment) ?
++					    __alignment : __max_align);
++	return _Aligned_alloc().allocate(__new_size);
++      }
++
++      virtual void
++      do_deallocate(void* __p, size_t __bytes, size_t __alignment)
++      {
++	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
++	size_t __new_size = _S_aligned_size(__bytes,
++					    _M_supported(__alignment) ?
++					    __alignment : __max_align);
++	_Aligned_alloc().deallocate(static_cast<typename
++				    _Aligned_alloc::pointer>(__p),
++				    __new_size);
++      }
++
++      virtual bool
++      do_is_equal(const memory_resource& __other) const noexcept
++      {
++	auto __p = dynamic_cast<const __resource_adaptor_imp*>(&__other);
++	return __p ? (_M_alloc == __p->_M_alloc) : false;
++      }
++
++    private:
++      // Calculate Aligned Size
++      // Returns a size that is larger than or equal to __size
++      // and divided by __alignment
++      static size_t _S_aligned_size(size_t __size, size_t __alignment)
++      { return ((__size - 1)|(__alignment - 1)) + 1; }
++
++      // Ensure __alignment to be a power of two,
++      // Otherwise size are aligned with __max_align
++      static bool _M_supported (size_t __x)
++      { return ((__x != 0) && !(__x & (__x - 1))); }
++
++      _Alloc _M_alloc;
++    };
++
++  // Global memory resources
++  inline std::atomic<memory_resource*>&
++  __get_default_resource()
++  {
++    static std::atomic<memory_resource*>
++      _S_default_resource(new_delete_resource());
++    return _S_default_resource;
++  }
++
++  inline memory_resource*
++  new_delete_resource() noexcept
++  {
++    static resource_adaptor<std::allocator<char>> __r;
++    return static_cast<memory_resource*>(&__r);
++  }
++
++  template <typename _Alloc>
++    class __null_memory_resource : private memory_resource
++    {
++    protected:
++      void* do_allocate(size_t __bytes, size_t __alignment)
++      { std::__throw_bad_alloc(); }
++
++      void do_deallocate(void* __p, size_t __bytes, size_t __alignment)
++      { }
++
++      bool do_is_equal(const memory_resource& __other) const noexcept
++      { }
++
++      friend memory_resource* null_memory_resource() noexcept;
++    };
++
++  inline memory_resource*
++  null_memory_resource() noexcept
++  {
++    static __null_memory_resource<void> __r;
++    return static_cast<memory_resource*>(&__r);
++  }
++
++  // The default memory resource
++  inline memory_resource*
++  get_default_resource() noexcept
++  { return __get_default_resource().load(); }
++
++  inline memory_resource*
++  set_default_resource(memory_resource* __r) noexcept
++  {
++    if ( __r == nullptr)
++      __r = new_delete_resource();
++    return __get_default_resource().exchange(__r);
++  }
++
++}
++}
++}
++}
++
++#endif
+Index: include/experimental/utility
+===================================================================
+--- include/experimental/utility	(revision 0)
++++ include/experimental/utility	(working copy)
+@@ -0,0 +1,16 @@
++#ifndef _GLIBCXX_EXPERIMENTAL_UTILITY
++#define _GLIBCXX_EXPERIMENTAL_UTILITY 1
++
++#include <utility>
++
++namespace std {
++namespace experimental {
++inline namespace fundamentals_v1 {
++  //3.1.2, erased-type placeholder
++  using erased_type = std::__erased_type;
++
++} // namespace fundamentals_v1
++} // namespace experimental
++} // namespace std
++
++#endif
+Index: testsuite/experimental/type_erased_allocator/1.cc
+===================================================================
+--- testsuite/experimental/type_erased_allocator/1.cc	(revision 0)
++++ testsuite/experimental/type_erased_allocator/1.cc	(working copy)
+@@ -0,0 +1,147 @@
++// { dg-options "-std=gnu++14" }
++
++// Copyright (C) 2015 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// You should have received a copy of the GNU General Public License along
++// with this library; see the file COPYING3.  If not see
++// <http://www.gnu.org/licenses/>.
++
++#include <memory>
++#include <experimental/memory_resource>
++#include <vector>
++#include <bits/uses_allocator.h>
++#include <testsuite_hooks.h>
++#include <testsuite_allocator.h>
++
++using std::experimental::pmr::polymorphic_allocator;
++using std::experimental::pmr::memory_resource;
++using std::experimental::pmr::new_delete_resource;
++using std::experimental::pmr::get_default_resource;
++using std::experimental::pmr::set_default_resource;
++
++struct A
++{
++  A() { ++ctor_count; }
++  ~A() { ++dtor_count; }
++  static int ctor_count;
++  static int dtor_count;
++};
++int A::ctor_count = 0;
++int A::dtor_count = 0;
++
++struct CountedResource : public memory_resource
++{
++public:
++  CountedResource() = default;
++  ~ CountedResource() = default;
++
++  static size_t get_alloc_count()  { return alloc_count;  }
++  static size_t get_dalloc_count() { return dalloc_count; }
++
++  static size_t  alloc_count;
++  static size_t  dalloc_count;
++protected:
++  void* do_allocate(size_t bytes, size_t alignment)
++  {
++    alloc_count += bytes;
++    if (auto ptr = std::malloc(bytes)) {
++      return ptr;
++    }
++    throw std::bad_alloc();
++  }
++
++  void do_deallocate(void *p, size_t bytes, size_t alignment)
++  {
++    dalloc_count += bytes;
++    free(p);
++  }
++
++  bool do_is_equal(const memory_resource& __other) const noexcept
++  { return this == &__other; }
++};
++  size_t  CountedResource::alloc_count  = 0;
++  size_t  CountedResource::dalloc_count = 0;
++
++void clear()
++{
++  CountedResource::alloc_count  = 0;
++  CountedResource::dalloc_count = 0;
++  A::ctor_count = 0;
++  A::dtor_count = 0;
++}
++
++// memory resource
++void test01()
++{
++  memory_resource* r = new_delete_resource();
++  VERIFY(get_default_resource() == r);
++  void *p = get_default_resource()->allocate(5);
++  VERIFY(p);
++  get_default_resource()->deallocate(p, 5);
++
++  clear();
++  CountedResource* cr = new CountedResource();
++  set_default_resource(cr);
++  VERIFY(get_default_resource() == cr);
++  void *pc = get_default_resource()->allocate(5);
++  VERIFY(pc);
++  get_default_resource()->deallocate(pc, 5);
++  VERIFY(CountedResource::get_alloc_count()  == 5);
++  VERIFY(CountedResource::get_dalloc_count() == 5);
++}
++
++// polymorphic_allocator
++void test02()
++{
++  clear();
++  {
++    CountedResource cr;
++    polymorphic_allocator<A> pa(&cr);
++    std::vector<A, polymorphic_allocator<A>> v(5, A(), pa);
++  }
++  VERIFY(A::ctor_count == 1);
++  VERIFY(A::dtor_count == 6);
++  VERIFY(CountedResource::get_alloc_count()  == 5);
++  VERIFY(CountedResource::get_dalloc_count() == 5);
++}
++
++void test03() {
++  clear();
++  CountedResource cr;
++  polymorphic_allocator<A> pa(&cr);
++  A* p = pa.allocate(1);
++  pa.construct(p);
++  pa.destroy(p);
++  pa.deallocate(p, 1);
++  VERIFY(A::ctor_count == 1);
++  VERIFY(A::dtor_count == 1);
++  VERIFY(CountedResource::get_alloc_count()  == 1);
++  VERIFY(CountedResource::get_dalloc_count() == 1);
++}
++
++void test04() {
++  polymorphic_allocator<A> pa1(get_default_resource());
++  polymorphic_allocator<A> pa2(get_default_resource());
++  VERIFY(pa1 == pa2);
++  polymorphic_allocator<A> pa3 = pa2.select_on_container_copy_construction();
++  VERIFY(pa1 == pa3);
++}
++
++int main() {
++  test01();
++  test02();
++  test03();
++  test04();
++  return 0;
++}
+Index: testsuite/experimental/type_erased_allocator/1_neg.cc
+===================================================================
+--- testsuite/experimental/type_erased_allocator/1_neg.cc	(revision 0)
++++ testsuite/experimental/type_erased_allocator/1_neg.cc	(working copy)
+@@ -0,0 +1,37 @@
++// { dg-do run { xfail *-*-* } }
++// { dg-options "-std=gnu++14" }
++
++// Copyright (C) 2015 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// You should have received a copy of the GNU General Public License along
++// with this library; see the file COPYING3.  If not see
++// <http://www.gnu.org/licenses/>.
++
++#include <experimental/memory_resource>
++#include <bits/uses_allocator.h>
++#include <testsuite_hooks.h>
++#include <testsuite_allocator.h>
++
++using std::experimental::pmr::polymorphic_allocator;
++using std::experimental::pmr::null_memory_resource;
++using std::experimental::pmr::memory_resource;
++
++void test01() {
++  memory_resource* r = null_memory_resource();
++  auto p = r->allocate(1);
++}
++
++int main() {
++  test01();
++}
+Index: testsuite/experimental/type_erased_allocator/2.cc
+===================================================================
+--- testsuite/experimental/type_erased_allocator/2.cc	(revision 0)
++++ testsuite/experimental/type_erased_allocator/2.cc	(working copy)
+@@ -0,0 +1,202 @@
++// { dg-options "-std=gnu++14" }
++
++// Copyright (C) 2015 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// You should have received a copy of the GNU General Public License along
++// with this library; see the file COPYING3.  If not see
++// <http://www.gnu.org/licenses/>.
++
++#include <memory>
++#include <experimental/memory_resource>
++#include <experimental/utility>
++#include <bits/uses_allocator.h>
++#include <testsuite_hooks.h>
++#include <testsuite_allocator.h>
++
++using std::experimental::pmr::polymorphic_allocator;
++using std::experimental::pmr::memory_resource;
++using std::experimental::pmr::new_delete_resource;
++using std::experimental::pmr::get_default_resource;
++using std::experimental::pmr::set_default_resource;
++using std::allocator_arg_t;
++
++enum CtorType { Default, Copy, Move, Other, Tuple, Piecewise_Default, Piecewise_Copy};
++
++// type that takes a memory_resource before other ctor args
++struct A
++{
++  using allocator_type = std::experimental::erased_type;
++
++  CtorType type;
++  memory_resource* alloc = nullptr;
++
++  A() : type(Default) { }
++  A(allocator_arg_t, memory_resource* a) : type(Default), alloc(a) { }
++  A(const A&) : type(Copy) { }
++  A(allocator_arg_t, memory_resource* a, const A&) : type(Copy), alloc(a) { }
++  A(A&&) : type (Move) { }
++  A(allocator_arg_t, memory_resource* a, A&&) : type (Move), alloc(a) { }
++  A(int) : type(Other) { }
++  A(allocator_arg_t, memory_resource* a, int) : type(Other), alloc(a) { }
++};
++
++// type that takes a memory_resource after other ctor args
++struct B
++{
++  using allocator_type = std::experimental::erased_type;
++
++  CtorType type;
++  memory_resource* alloc = nullptr;
++
++  B() : type(Default) { }
++  B(memory_resource* a) : type(Default), alloc(a) { }
++  B(const B&) : type(Copy) { }
++  B(const B&, memory_resource* a) : type(Copy), alloc(a) { }
++  B(B&&) : type (Move) { }
++  B(B&&, memory_resource* a) : type(Move), alloc(a) { }
++  B(int) : type(Other) { }
++  B(int, memory_resource* a) : type(Other), alloc(a) { }
++};
++
++// type that takes no memory_resource
++struct C
++{
++  CtorType type;
++  C() : type(Default) { }
++  C(const C&) : type(Copy) { }
++  C(C&&) : type(Move) { }
++  C(int) : type(Other) { }
++};
++
++// test construct for type that
++// uses memory_resource* as allocator
++template<typename A>
++void test_uses_alloc() {
++  polymorphic_allocator<A> pa;
++  A* p = pa.allocate(1);
++  A a;
++
++  pa.construct(p);
++  VERIFY(p->alloc == get_default_resource());
++  VERIFY(p->type == Default);
++  pa.destroy(p);
++
++  pa.construct(p, a);
++  VERIFY(p->type == Copy);
++  pa.destroy(p);
++
++  pa.construct(p, A());
++  VERIFY(p->type == Move);
++  pa.destroy(p);
++
++  pa.construct(p, 1);
++  VERIFY(p->type == Other);
++  pa.destroy(p);
++
++  pa.deallocate(p, 1);
++}
++
++// test construct for type that not using allocator
++template <typename C>
++void test_non_alloc() {
++  polymorphic_allocator<C> pa;
++  C* p = pa.allocate(1);
++  C b;
++
++  pa.construct(p);
++  VERIFY(p->type == Default);
++  pa.destroy(p);
++
++  pa.construct(p, b);
++  VERIFY(p->type == Copy);
++  pa.destroy(p);
++
++  pa.construct(p, C());
++  VERIFY(p->type == Move);
++  pa.destroy(p);
++
++  pa.construct(p, 1);
++  VERIFY(p->type == Other);
++  pa.destroy(p);
++
++  pa.deallocate(p, 1);
++}
++
++// test piecewise_construct
++template <typename A, typename B>
++void test_pair() {
++  polymorphic_allocator<std::pair<A, B>> pa;
++  std::pair<A, B>* p = pa.allocate(1);
++  std::tuple<> t;
++
++  // construct(pair<T1, T2>* p, piecewise_construct_t, tuple<...>, tuple<...>)
++  pa.construct(p, std::piecewise_construct, t, t);
++  VERIFY(p->first.type == Default);
++  VERIFY(p->second.type == Default);
++  pa.destroy(p);
++
++  // construct(pair<T1, T2>* __p)
++  pa.construct(p);
++  VERIFY(p->first.type == Default);
++  VERIFY(p->second.type == Default);
++  pa.destroy(p);
++
++  // construct(pair<T1, T2>* p, U&& x, V&& y)
++  A a; B b;
++  pa.construct(p, a, b);
++  VERIFY(p->first.type == Copy);
++  VERIFY(p->second.type == Copy);
++  pa.destroy(p);
++
++  pa.construct(p, A(), B());
++  VERIFY(p->first.type == Move);
++  VERIFY(p->second.type == Move);
++  auto pp = *p;
++  pa.destroy(p);
++
++  // construct(pair<T1, T2>* p, const pair<U, V>& x)
++  pa.construct(p, pp);
++  VERIFY(p->first.type == Copy);
++  VERIFY(p->second.type == Copy);
++  pa.destroy(p);
++
++  // construct(pair<T1, T2>* p, pair<U, V>&& x)
++  pa.construct(p, std::move(pp));
++  VERIFY(p->first.type == Move);
++  VERIFY(p->second.type == Move);
++  pa.destroy(p);
++  pa.deallocate(p, 1);
++}
++
++void test01() {
++  test_uses_alloc<A>();
++  test_uses_alloc<B>();
++  test_non_alloc<C>();
++}
++
++void test02() {
++  test_pair<A, A>();
++  test_pair<A, B>();
++  test_pair<A, C>();
++  test_pair<B, B>();
++  test_pair<B, A>();
++  test_pair<B, C>();
++  test_pair<C, C>();
++}
++
++
++int main() {
++  test01();
++  test02();
++}
+Index: testsuite/experimental/type_erased_allocator/uses_allocator.cc
+===================================================================
+--- testsuite/experimental/type_erased_allocator/uses_allocator.cc	(revision 0)
++++ testsuite/experimental/type_erased_allocator/uses_allocator.cc	(working copy)
+@@ -0,0 +1,22 @@
++#include <bits/uses_allocator.h>
++#include <vector>
++#include <experimental/utility>
++#include <memory>
++
++using std::vector;
++using std::allocator;
++using std::uses_allocator;
++
++struct A {
++  using allocator_type = std::experimental::erased_type;
++};
++
++void test01() {
++    static_assert(uses_allocator<vector<int>, allocator<int>>());
++    static_assert(uses_allocator<A, allocator<A>>());
++}
++
++int main() {
++  test01();
++  return 0;
++}
