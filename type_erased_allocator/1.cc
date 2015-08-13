@@ -1,4 +1,4 @@
-// { dg-options "-std=gnu++11" }
+// { dg-options "-std=gnu++14" }
 
 // Copyright (C) 2015 Free Software Foundation, Inc.
 //

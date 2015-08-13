@@ -1,3 +1,31 @@
+// <experimental/memory_resource> -*- C++ -*-
+
+// Copyright (C) 2015 Free Software Foundation, Inc.
+//
+// This file is part of the GNU ISO C++ Library.  This library is free
+// software; you can redistribute it and/or modify it under the
+// terms of the GNU General Public License as published by the
+// Free Software Foundation; either version 3, or (at your option)
+// any later version.
+
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
+
+/** @file experimental/memory
+ *  This is a TS C++ Library header.
+ */
+
 #ifndef _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE
 #define _GLIBCXX_EXPERIMENTAL_MEMORY_RESOURCE 1
 
@@ -249,9 +277,9 @@ namespace pmr {
       do_allocate(size_t __bytes, size_t __alignment)
       {
 	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
-	size_t __new_size = _Aligned_size(__bytes,
-					  _M_supported(__alignment) ?
-					  __alignment : __max_align);
+	size_t __new_size = _S_aligned_size(__bytes,
+					    _M_supported(__alignment) ?
+					    __alignment : __max_align);
 	return _Aligned_alloc().allocate(__new_size);
       }
 
@@ -259,9 +287,9 @@ namespace pmr {
       do_deallocate(void* __p, size_t __bytes, size_t __alignment)
       {
 	using _Aligned_alloc = typename _Alloc::template rebind<char>::other;
-	size_t __new_size = _Aligned_size(__bytes,
-					  _M_supported(__alignment) ?
-					  __alignment : __max_align);
+	size_t __new_size = _S_aligned_size(__bytes,
+					    _M_supported(__alignment) ?
+					    __alignment : __max_align);
 	_Aligned_alloc().deallocate(static_cast<typename
 				    _Aligned_alloc::pointer>(__p),
 				    __new_size);
@@ -276,20 +304,22 @@ namespace pmr {
 
     private:
       // Calculate Aligned Size
-      // Returns a size that is larger than or equal to __size and divided by
-      // __alignment, where __alignment is required to be the power of 2.
-      size_t _Aligned_size(size_t __size, size_t __alignment)
+      // Returns a size that is larger than or equal to __size
+      // and divided by __alignment
+      static size_t _S_aligned_size(size_t __size, size_t __alignment)
       { return ((__size - 1)|(__alignment - 1)) + 1; }
 
-      bool _M_supported (size_t __x)
-      { return ((__x != 0) && (__x != 0) && !(__x & (__x - 1))); }
+      // Ensure __alignment to be a power of two,
+      // Otherwise size are aligned with __max_align
+      static bool _M_supported (size_t __x)
+      { return ((__x != 0) && !(__x & (__x - 1))); }
 
       _Alloc _M_alloc;
     };
 
   // Global memory resources
   inline std::atomic<memory_resource*>&
-  _S_get_default_resource()
+  __get_default_resource()
   {
     static std::atomic<memory_resource*>
       _S_default_resource(new_delete_resource());
@@ -316,7 +346,7 @@ namespace pmr {
       bool do_is_equal(const memory_resource& __other) const noexcept
       { }
 
-      friend memory_resource* null_memory_resource();
+      friend memory_resource* null_memory_resource() noexcept;
     };
 
   inline memory_resource*
@@ -329,14 +359,14 @@ namespace pmr {
   // The default memory resource
   inline memory_resource*
   get_default_resource() noexcept
-  { return _S_get_default_resource().load(); }
+  { return __get_default_resource().load(); }
 
   inline memory_resource*
   set_default_resource(memory_resource* __r) noexcept
   {
     if ( __r == nullptr)
       __r = new_delete_resource();
-    return _S_get_default_resource().exchange(__r);
+    return __get_default_resource().exchange(__r);
   }
 
 }
