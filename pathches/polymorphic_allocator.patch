@@ -1,7 +1,7 @@
-Index: include/bits/uses_allocator.h
+Index: libstdc++-v3/include/bits/uses_allocator.h
 ===================================================================
---- include/bits/uses_allocator.h	(revision 226875)
-+++ include/bits/uses_allocator.h	(working copy)
+--- libstdc++-v3/include/bits/uses_allocator.h	(revision 227154)
++++ libstdc++-v3/include/bits/uses_allocator.h	(working copy)
 @@ -35,6 +35,18 @@ namespace std _GLIBCXX_VISIBILITY(default)
  {
  _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -30,10 +30,10 @@ Index: include/bits/uses_allocator.h
      { };
  
    /// [allocator.uses.trait]
-Index: include/experimental/memory_resource
+Index: libstdc++-v3/include/experimental/memory_resource
 ===================================================================
---- include/experimental/memory_resource	(revision 0)
-+++ include/experimental/memory_resource	(working copy)
+--- libstdc++-v3/include/experimental/memory_resource	(revision 0)
++++ libstdc++-v3/include/experimental/memory_resource	(working copy)
 @@ -0,0 +1,377 @@
 +// <experimental/memory_resource> -*- C++ -*-
 +
@@ -412,10 +412,10 @@ Index: include/experimental/memory_resource
 +}
 +
 +#endif
-Index: include/experimental/utility
+Index: libstdc++-v3/include/experimental/utility
 ===================================================================
---- include/experimental/utility	(revision 0)
-+++ include/experimental/utility	(working copy)
+--- libstdc++-v3/include/experimental/utility	(revision 0)
++++ libstdc++-v3/include/experimental/utility	(working copy)
 @@ -0,0 +1,16 @@
 +#ifndef _GLIBCXX_EXPERIMENTAL_UTILITY
 +#define _GLIBCXX_EXPERIMENTAL_UTILITY 1
@@ -433,10 +433,10 @@ Index: include/experimental/utility
 +} // namespace std
 +
 +#endif
-Index: testsuite/experimental/type_erased_allocator/1.cc
+Index: libstdc++-v3/testsuite/experimental/type_erased_allocator/1.cc
 ===================================================================
---- testsuite/experimental/type_erased_allocator/1.cc	(revision 0)
-+++ testsuite/experimental/type_erased_allocator/1.cc	(working copy)
+--- libstdc++-v3/testsuite/experimental/type_erased_allocator/1.cc	(revision 0)
++++ libstdc++-v3/testsuite/experimental/type_erased_allocator/1.cc	(working copy)
 @@ -0,0 +1,147 @@
 +// { dg-options "-std=gnu++14" }
 +
@@ -585,10 +585,10 @@ Index: testsuite/experimental/type_erased_allocator/1.cc
 +  test04();
 +  return 0;
 +}
-Index: testsuite/experimental/type_erased_allocator/1_neg.cc
+Index: libstdc++-v3/testsuite/experimental/type_erased_allocator/1_neg.cc
 ===================================================================
---- testsuite/experimental/type_erased_allocator/1_neg.cc	(revision 0)
-+++ testsuite/experimental/type_erased_allocator/1_neg.cc	(working copy)
+--- libstdc++-v3/testsuite/experimental/type_erased_allocator/1_neg.cc	(revision 0)
++++ libstdc++-v3/testsuite/experimental/type_erased_allocator/1_neg.cc	(working copy)
 @@ -0,0 +1,37 @@
 +// { dg-do run { xfail *-*-* } }
 +// { dg-options "-std=gnu++14" }
@@ -627,10 +627,10 @@ Index: testsuite/experimental/type_erased_allocator/1_neg.cc
 +int main() {
 +  test01();
 +}
-Index: testsuite/experimental/type_erased_allocator/2.cc
+Index: libstdc++-v3/testsuite/experimental/type_erased_allocator/2.cc
 ===================================================================
---- testsuite/experimental/type_erased_allocator/2.cc	(revision 0)
-+++ testsuite/experimental/type_erased_allocator/2.cc	(working copy)
+--- libstdc++-v3/testsuite/experimental/type_erased_allocator/2.cc	(revision 0)
++++ libstdc++-v3/testsuite/experimental/type_erased_allocator/2.cc	(working copy)
 @@ -0,0 +1,202 @@
 +// { dg-options "-std=gnu++14" }
 +
@@ -834,10 +834,10 @@ Index: testsuite/experimental/type_erased_allocator/2.cc
 +  test01();
 +  test02();
 +}
-Index: testsuite/experimental/type_erased_allocator/uses_allocator.cc
+Index: libstdc++-v3/testsuite/experimental/type_erased_allocator/uses_allocator.cc
 ===================================================================
---- testsuite/experimental/type_erased_allocator/uses_allocator.cc	(revision 0)
-+++ testsuite/experimental/type_erased_allocator/uses_allocator.cc	(working copy)
+--- libstdc++-v3/testsuite/experimental/type_erased_allocator/uses_allocator.cc	(revision 0)
++++ libstdc++-v3/testsuite/experimental/type_erased_allocator/uses_allocator.cc	(working copy)
 @@ -0,0 +1,22 @@
 +#include <bits/uses_allocator.h>
 +#include <vector>
